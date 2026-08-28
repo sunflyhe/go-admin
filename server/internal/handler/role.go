@@ -20,12 +20,12 @@ func NewRoleHandler(svc *service.RoleService) *RoleHandler {
 
 // List GET /api/v1/roles
 func (h *RoleHandler) List(c *gin.Context) {
-	var req service.RoleListReq
-	if err := c.ShouldBindQuery(&req); err != nil {
+	var query RoleListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
 		resp.Fail(c, errs.InvalidParam("分页参数错误: pageSize 不能超过 100"))
 		return
 	}
-	result, err := h.Svc.List(c, &req)
+	result, err := h.Svc.List(c.Request.Context(), query.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -35,12 +35,12 @@ func (h *RoleHandler) List(c *gin.Context) {
 
 // Create POST /api/v1/roles
 func (h *RoleHandler) Create(c *gin.Context) {
-	var req service.RoleSaveReq
+	var req RoleCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: 名称与编码必填,编码 2-64 位"))
 		return
 	}
-	result, err := h.Svc.Create(c, &req)
+	result, err := h.Svc.Create(c.Request.Context(), req.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -55,12 +55,12 @@ func (h *RoleHandler) Update(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	var req service.RoleSaveReq
+	var req RoleUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误"))
 		return
 	}
-	result, err := h.Svc.Update(c, id, &req)
+	result, err := h.Svc.Update(c.Request.Context(), id, req.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -75,7 +75,7 @@ func (h *RoleHandler) Delete(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	if err := h.Svc.Delete(c, id); err != nil {
+	if err := h.Svc.Delete(c.Request.Context(), id); err != nil {
 		resp.Fail(c, err)
 		return
 	}
@@ -89,7 +89,7 @@ func (h *RoleHandler) Menus(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	result, err := h.Svc.Menus(c, id)
+	result, err := h.Svc.Menus(c.Request.Context(), id)
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -104,12 +104,12 @@ func (h *RoleHandler) AssignMenus(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	var req service.RoleAssignMenusReq
+	var req RoleAssignMenusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: menuIds 必填"))
 		return
 	}
-	if err := h.Svc.AssignMenus(c, id, &req); err != nil {
+	if err := h.Svc.AssignMenus(c.Request.Context(), id, &service.RoleAssignMenusInput{MenuIDs: req.MenuIDs}); err != nil {
 		resp.Fail(c, err)
 		return
 	}

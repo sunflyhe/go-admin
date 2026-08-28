@@ -7,13 +7,12 @@
 package service
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
@@ -36,12 +35,7 @@ func NewAuthService(db *gorm.DB, jwt *pkgauth.Manager, logger *slog.Logger) *Aut
 	}
 }
 
-// ---- DTO ----
-
-type LoginReq struct {
-	Username string `json:"username" binding:"required,max=64"`
-	Password string `json:"password" binding:"required,max=128"`
-}
+// ---- 输出 DTO(输入为方法参数:账号密码、LoginMeta、Actor)----
 
 type TokenPair struct {
 	AccessToken  string    `json:"accessToken"`
@@ -65,10 +59,6 @@ type LoginResp struct {
 	User UserProfile `json:"user"`
 }
 
-type RefreshReq struct {
-	RefreshToken string `json:"refreshToken" binding:"required"`
-}
-
 type MeResp struct {
 	User        UserProfile `json:"user"`
 	Permissions []string    `json:"permissions"`
@@ -78,28 +68,28 @@ type MeResp struct {
 // ---- Service ----
 
 // Login 账号密码登录:校验限流、验证密码、签发 token、记录登录日志。
-func (s *AuthService) Login(c *gin.Context, req *LoginReq) (*LoginResp, error) {
-	ip := c.ClientIP()
-	key := req.Username + "|" + ip
+// HTTP 元数据由 Handler 通过 meta 显式传入,Service 不感知 Gin。
+func (s *AuthService) Login(ctx context.Context, username, password string, meta LoginMeta) (*LoginResp, error) {
+	key := username + "|" + meta.IP
 	if locked, _ := s.Limiter.Locked(key); locked {
-		s.recordLoginLog(req.Username, false, "尝试次数过多被限流", c)
+		s.recordLoginLog(ctx, username, false, "尝试次数过多被限流", meta)
 		return nil, errs.TooManyRequests("登录失败次数过多,请稍后再试")
 	}
 
 	var user model.SysUser
-	err := s.DB.Where("username = ?", req.Username).First(&user).Error
+	err := s.DB.WithContext(ctx).Where("username = ?", username).First(&user).Error
 	if err != nil {
 		s.Limiter.Fail(key)
-		s.recordLoginLog(req.Username, false, "账号或密码错误", c)
+		s.recordLoginLog(ctx, username, false, "账号或密码错误", meta)
 		return nil, errs.Unauthorized("账号或密码错误")
 	}
-	if !pkgauth.VerifyPassword(user.Password, req.Password) {
+	if !pkgauth.VerifyPassword(user.Password, password) {
 		s.Limiter.Fail(key)
-		s.recordLoginLog(req.Username, false, "账号或密码错误", c)
+		s.recordLoginLog(ctx, username, false, "账号或密码错误", meta)
 		return nil, errs.Unauthorized("账号或密码错误")
 	}
 	if user.Status != model.StatusEnabled {
-		s.recordLoginLog(req.Username, false, "账号已停用", c)
+		s.recordLoginLog(ctx, username, false, "账号已停用", meta)
 		return nil, errs.Forbidden("账号已被停用,请联系管理员")
 	}
 
@@ -107,16 +97,16 @@ func (s *AuthService) Login(c *gin.Context, req *LoginReq) (*LoginResp, error) {
 	if err != nil {
 		return nil, errs.Internal("签发凭据失败").WithCause(err)
 	}
-	if err := s.registerRefreshToken(c, user.ID, refresh); err != nil {
+	if err := s.registerRefreshToken(ctx, user.ID, refresh); err != nil {
 		return nil, err
 	}
 
 	now := time.Now()
-	if err := s.DB.Model(&user).Update("last_login_at", &now).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&user).Update("last_login_at", &now).Error; err != nil {
 		s.Logger.Warn("更新最后登录时间失败", "error", err)
 	}
 	s.Limiter.Reset(key)
-	s.recordLoginLog(req.Username, true, "", c)
+	s.recordLoginLog(ctx, username, true, "", meta)
 
 	return &LoginResp{
 		TokenPair: TokenPair{
@@ -124,12 +114,12 @@ func (s *AuthService) Login(c *gin.Context, req *LoginReq) (*LoginResp, error) {
 			RefreshToken: refresh,
 			ExpiresAt:    time.Now().Add(s.JWT.AccessTTL()),
 		},
-		User: s.profile(c, &user),
+		User: s.profile(ctx, &user),
 	}, nil
 }
 
 // registerRefreshToken 将 refresh token 的 jti 登记入库,用于轮换与吊销。
-func (s *AuthService) registerRefreshToken(c *gin.Context, userID int64, refresh string) error {
+func (s *AuthService) registerRefreshToken(ctx context.Context, userID int64, refresh string) error {
 	claims, err := s.JWT.Parse(refresh, pkgauth.TokenTypeRefresh)
 	if err != nil {
 		return errs.Internal("解析刷新令牌失败").WithCause(err)
@@ -139,25 +129,25 @@ func (s *AuthService) registerRefreshToken(c *gin.Context, userID int64, refresh
 		UserID:    userID,
 		ExpiresAt: claims.ExpiresAt.Time,
 	}
-	if err := s.DB.WithContext(c).Create(&rt).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Create(&rt).Error; err != nil {
 		return errs.Internal("登记刷新令牌失败").WithCause(err)
 	}
 	return nil
 }
 
 // Refresh 轮换刷新令牌:校验旧令牌登记后立即吊销,签发新 access + refresh。
-func (s *AuthService) Refresh(c *gin.Context, req *RefreshReq) (*TokenPair, error) {
-	claims, err := s.JWT.Parse(req.RefreshToken, pkgauth.TokenTypeRefresh)
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenPair, error) {
+	claims, err := s.JWT.Parse(refreshToken, pkgauth.TokenTypeRefresh)
 	if err != nil {
 		return nil, err
 	}
 	var rt model.SysRefreshToken
-	if err := s.DB.Where("jti = ?", claims.JTI).First(&rt).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("jti = ?", claims.JTI).First(&rt).Error; err != nil {
 		return nil, errs.Unauthorized("刷新凭据无效,请重新登录")
 	}
 	if rt.Revoked {
 		// 已吊销令牌被复用,视为泄露风险,吊销该用户全部刷新令牌。
-		s.revokeAll(c, claims.UserID)
+		s.revokeAll(ctx, claims.UserID)
 		return nil, errs.Unauthorized("刷新凭据已失效,请重新登录")
 	}
 	if time.Now().After(rt.ExpiresAt) {
@@ -165,7 +155,7 @@ func (s *AuthService) Refresh(c *gin.Context, req *RefreshReq) (*TokenPair, erro
 	}
 
 	var user model.SysUser
-	if err := s.DB.First(&user, claims.UserID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&user, claims.UserID).Error; err != nil {
 		return nil, errs.Unauthorized("账号不存在或已删除")
 	}
 	if user.Status != model.StatusEnabled {
@@ -178,21 +168,21 @@ func (s *AuthService) Refresh(c *gin.Context, req *RefreshReq) (*TokenPair, erro
 	now := time.Now()
 	// 必须带 revoked=false 条件更新：两个并发 refresh 都完成前置读取时，
 	// 仅允许其中一个请求消费旧令牌并签发新的 token pair。
-	res := s.DB.WithContext(c).Model(&model.SysRefreshToken{}).
+	res := s.DB.WithContext(ctx).Model(&model.SysRefreshToken{}).
 		Where("jti = ? AND revoked = ?", claims.JTI, false).
 		Updates(map[string]interface{}{"revoked": true, "revoked_at": now})
 	if res.Error != nil {
 		return nil, errs.Internal("吊销旧令牌失败").WithCause(res.Error)
 	}
 	if res.RowsAffected != 1 {
-		s.revokeAll(c, claims.UserID)
+		s.revokeAll(ctx, claims.UserID)
 		return nil, errs.Unauthorized("刷新凭据已失效,请重新登录")
 	}
 	access, refresh, err := s.JWT.IssuePair(user.ID, user.Username, user.TokenVersion)
 	if err != nil {
 		return nil, errs.Internal("签发凭据失败").WithCause(err)
 	}
-	if err := s.registerRefreshToken(c, user.ID, refresh); err != nil {
+	if err := s.registerRefreshToken(ctx, user.ID, refresh); err != nil {
 		return nil, err
 	}
 	return &TokenPair{
@@ -204,22 +194,18 @@ func (s *AuthService) Refresh(c *gin.Context, req *RefreshReq) (*TokenPair, erro
 
 // Logout 退出登录:吊销该用户全部刷新令牌并自增 token_version,
 // 旧 access token 与 refresh token 随即全部失效。
-func (s *AuthService) Logout(c *gin.Context) error {
-	user, ok := middleware.CurrentUser(c)
-	if !ok {
-		return errs.Unauthorized("未登录")
-	}
-	s.revokeAll(c, user.ID)
-	if err := s.DB.Model(&model.SysUser{ID: user.ID}).
+func (s *AuthService) Logout(ctx context.Context, actor Actor) error {
+	s.revokeAll(ctx, actor.ID)
+	if err := s.DB.WithContext(ctx).Model(&model.SysUser{ID: actor.ID}).
 		UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
 		return errs.Internal("退出登录失败").WithCause(err)
 	}
 	return nil
 }
 
-func (s *AuthService) revokeAll(c *gin.Context, userID int64) {
+func (s *AuthService) revokeAll(ctx context.Context, userID int64) {
 	now := time.Now()
-	if err := s.DB.WithContext(c).Model(&model.SysRefreshToken{}).
+	if err := s.DB.WithContext(ctx).Model(&model.SysRefreshToken{}).
 		Where("user_id = ? AND revoked = ?", userID, false).
 		Updates(map[string]interface{}{"revoked": true, "revoked_at": now}).Error; err != nil {
 		s.Logger.Warn("吊销刷新令牌失败", "error", err)
@@ -227,32 +213,33 @@ func (s *AuthService) revokeAll(c *gin.Context, userID int64) {
 }
 
 // Me 当前用户:基本信息、角色码、权限码集合与可见菜单树。
-func (s *AuthService) Me(c *gin.Context) (*MeResp, error) {
-	user, ok := middleware.CurrentUser(c)
-	if !ok {
-		return nil, errs.Unauthorized("未登录")
+// 用户状态与版本校验由认证中间件完成,这里按 actor.ID 重新加载资料。
+func (s *AuthService) Me(ctx context.Context, actor Actor) (*MeResp, error) {
+	var user model.SysUser
+	if err := s.DB.WithContext(ctx).First(&user, actor.ID).Error; err != nil {
+		return nil, errs.Unauthorized("账号不存在或已删除")
 	}
-	perms, err := s.permissions(c, user)
+	perms, err := s.permissions(ctx, &user)
 	if err != nil {
 		return nil, err
 	}
-	menus, err := LoadUserMenus(s.DB.WithContext(c), user)
+	menus, err := LoadUserMenus(ctx, s.DB, &user)
 	if err != nil {
 		return nil, err
 	}
 	return &MeResp{
-		User:        s.profile(c, user),
+		User:        s.profile(ctx, &user),
 		Permissions: perms,
 		Menus:       menus,
 	}, nil
 }
 
-func (s *AuthService) permissions(c *gin.Context, user *model.SysUser) ([]string, error) {
+func (s *AuthService) permissions(ctx context.Context, user *model.SysUser) ([]string, error) {
 	if user.IsSuperAdmin() {
 		return []string{"*"}, nil
 	}
 	var perms []string
-	err := s.DB.WithContext(c).
+	err := s.DB.WithContext(ctx).
 		Table("sys_menu").
 		Joins("JOIN sys_role_menu ON sys_role_menu.menu_id = sys_menu.id").
 		Joins("JOIN sys_user_role ON sys_user_role.role_id = sys_role_menu.role_id").
@@ -267,9 +254,9 @@ func (s *AuthService) permissions(c *gin.Context, user *model.SysUser) ([]string
 	return perms, nil
 }
 
-func (s *AuthService) profile(c *gin.Context, user *model.SysUser) UserProfile {
+func (s *AuthService) profile(ctx context.Context, user *model.SysUser) UserProfile {
 	var roleCodes []string
-	_ = s.DB.WithContext(c).
+	_ = s.DB.WithContext(ctx).
 		Table("sys_role").
 		Joins("JOIN sys_user_role ON sys_user_role.role_id = sys_role.id").
 		Where("sys_user_role.user_id = ? AND sys_role.status = ?", user.ID, model.StatusEnabled).
@@ -289,15 +276,15 @@ func (s *AuthService) profile(c *gin.Context, user *model.SysUser) UserProfile {
 	}
 }
 
-func (s *AuthService) recordLoginLog(username string, success bool, reason string, c *gin.Context) {
+func (s *AuthService) recordLoginLog(ctx context.Context, username string, success bool, reason string, meta LoginMeta) {
 	entry := model.SysLoginLog{
 		Username:   username,
 		Success:    success,
 		FailReason: reason,
-		IP:         c.ClientIP(),
-		UserAgent:  truncate(c.Request.UserAgent(), 255),
+		IP:         meta.IP,
+		UserAgent:  truncate(meta.UserAgent, 255),
 	}
-	if err := s.DB.Create(&entry).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Create(&entry).Error; err != nil {
 		s.Logger.Error("记录登录日志失败", "error", err)
 	}
 }

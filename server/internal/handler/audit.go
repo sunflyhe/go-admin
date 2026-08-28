@@ -19,12 +19,12 @@ func NewAuditHandler(svc *service.AuditService) *AuditHandler {
 
 // List GET /api/v1/audit-logs
 func (h *AuditHandler) List(c *gin.Context) {
-	var req service.AuditListReq
-	if err := c.ShouldBindQuery(&req); err != nil {
+	var query AuditListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
 		resp.Fail(c, errs.InvalidParam("分页参数错误"))
 		return
 	}
-	result, err := h.Svc.List(c, &req)
+	result, err := h.Svc.List(c.Request.Context(), query.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return

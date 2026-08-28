@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/config"
+	middleware "github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
 	router "github.com/hesunfly/hesunfly-admin-go/server/internal/router"
 	service "github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
@@ -59,7 +60,7 @@ func main() {
 		time.Duration(cfg.JWT.RefreshTTLHours)*time.Hour,
 		cfg.JWT.Issuer,
 	)
-	recorder := service.NewRecorder(db)
+	recorder := middleware.NewRecorder(db)
 	defer recorder.Close()
 	stopCleaner := service.CleanupCleaner(db, cfg.Audit.RetentionDays, log)
 	defer stopCleaner()

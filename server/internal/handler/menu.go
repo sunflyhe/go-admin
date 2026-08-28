@@ -20,7 +20,7 @@ func NewMenuHandler(svc *service.MenuService) *MenuHandler {
 
 // Tree GET /api/v1/menus/tree
 func (h *MenuHandler) Tree(c *gin.Context) {
-	result, err := h.Svc.Tree(c)
+	result, err := h.Svc.Tree(c.Request.Context())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -30,7 +30,7 @@ func (h *MenuHandler) Tree(c *gin.Context) {
 
 // List GET /api/v1/menus
 func (h *MenuHandler) List(c *gin.Context) {
-	result, err := h.Svc.ListAll(c)
+	result, err := h.Svc.ListAll(c.Request.Context())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -40,12 +40,12 @@ func (h *MenuHandler) List(c *gin.Context) {
 
 // Create POST /api/v1/menus
 func (h *MenuHandler) Create(c *gin.Context) {
-	var req service.MenuSaveReq
+	var req MenuSaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: "+err.Error()))
 		return
 	}
-	result, err := h.Svc.Create(c, &req)
+	result, err := h.Svc.Create(c.Request.Context(), req.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -60,12 +60,12 @@ func (h *MenuHandler) Update(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	var req service.MenuSaveReq
+	var req MenuSaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: "+err.Error()))
 		return
 	}
-	result, err := h.Svc.Update(c, id, &req)
+	result, err := h.Svc.Update(c.Request.Context(), id, req.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -80,7 +80,7 @@ func (h *MenuHandler) Delete(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	if err := h.Svc.Delete(c, id); err != nil {
+	if err := h.Svc.Delete(c.Request.Context(), id); err != nil {
 		resp.Fail(c, err)
 		return
 	}

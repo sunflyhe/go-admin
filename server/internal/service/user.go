@@ -6,10 +6,10 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 
@@ -25,13 +25,13 @@ func NewUserService(db *gorm.DB) *UserService { return &UserService{DB: db} }
 
 // ---- DTO ----
 
-type UserListReq struct {
+type UserListInput struct {
 	page.Query
-	Username  string `form:"username"`
-	Nickname  string `form:"nickname"`
-	Status    int    `form:"status" binding:"omitempty,oneof=1 2"`
-	StartTime string `form:"startTime"`
-	EndTime   string `form:"endTime"`
+	Username  string ``
+	Nickname  string ``
+	Status    int    ``
+	StartTime string ``
+	EndTime   string ``
 }
 
 type UserItem struct {
@@ -47,34 +47,34 @@ type UserItem struct {
 	Super       bool       `json:"super"`
 }
 
-type UserSaveReq struct {
-	Username string `json:"username" binding:"required,min=3,max=64"`
-	Password string `json:"password" binding:"omitempty,min=8,max=128"`
-	Nickname string `json:"nickname" binding:"max=64"`
-	Email    string `json:"email" binding:"omitempty,email,max=128"`
-	Phone    string `json:"phone" binding:"max=32"`
-	Status   int    `json:"status" binding:"omitempty,oneof=1 2"`
+type UserSaveInput struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Nickname string `json:"nickname"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	Status   int    `json:"status"`
 }
 
-type UserSetStatusReq struct {
-	Status int `json:"status" binding:"required,oneof=1 2"`
+type UserSetStatusInput struct {
+	Status int `json:"status"`
 }
 
-type UserResetPasswordReq struct {
-	Password string `json:"password" binding:"required,min=8,max=128"`
+type UserResetPasswordInput struct {
+	Password string `json:"password"`
 }
 
-type UserAssignRolesReq struct {
-	RoleIDs []int64 `json:"roleIds" binding:"required"`
+type UserAssignRolesInput struct {
+	RoleIDs []int64 `json:"roleIds"`
 }
 
 // ---- UserService ----
 
-func (s *UserService) List(c *gin.Context, req *UserListReq) (*page.Result, error) {
+func (s *UserService) List(ctx context.Context, req *UserListInput) (*page.Result, error) {
 	if err := req.Normalize(); err != nil {
 		return nil, err
 	}
-	q := s.DB.WithContext(c).Model(&model.SysUser{})
+	q := s.DB.WithContext(ctx).Model(&model.SysUser{})
 	if req.Username != "" {
 		q = q.Where("username LIKE ?", "%"+req.Username+"%")
 	}
@@ -104,15 +104,15 @@ func (s *UserService) List(c *gin.Context, req *UserListReq) (*page.Result, erro
 	}
 	items := make([]UserItem, 0, len(users))
 	for i := range users {
-		item := s.toItem(c, &users[i])
+		item := s.toItem(ctx, &users[i])
 		items = append(items, item)
 	}
 	return &page.Result{List: items, Total: total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-func (s *UserService) toItem(c *gin.Context, u *model.SysUser) UserItem {
+func (s *UserService) toItem(ctx context.Context, u *model.SysUser) UserItem {
 	var roleIDs []int64
-	_ = s.DB.WithContext(c).Model(&model.SysUserRole{}).Where("user_id = ?", u.ID).Pluck("role_id", &roleIDs).Error
+	_ = s.DB.WithContext(ctx).Model(&model.SysUserRole{}).Where("user_id = ?", u.ID).Pluck("role_id", &roleIDs).Error
 	if roleIDs == nil {
 		roleIDs = []int64{}
 	}
@@ -124,12 +124,12 @@ func (s *UserService) toItem(c *gin.Context, u *model.SysUser) UserItem {
 	}
 }
 
-func (s *UserService) Create(c *gin.Context, req *UserSaveReq) (*UserItem, error) {
+func (s *UserService) Create(ctx context.Context, req *UserSaveInput) (*UserItem, error) {
 	if req.Password == "" {
 		return nil, errs.InvalidParam("密码不能为空")
 	}
 	var count int64
-	if err := s.DB.WithContext(c).Model(&model.SysUser{}).Where("username = ?", req.Username).Count(&count).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&model.SysUser{}).Where("username = ?", req.Username).Count(&count).Error; err != nil {
 		return nil, errs.Internal("查询失败").WithCause(err)
 	}
 	if count > 0 {
@@ -147,16 +147,16 @@ func (s *UserService) Create(c *gin.Context, req *UserSaveReq) (*UserItem, error
 		Username: req.Username, Password: hash, Nickname: req.Nickname,
 		Email: req.Email, Phone: req.Phone, Status: status,
 	}
-	if err := s.DB.WithContext(c).Create(u).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Create(u).Error; err != nil {
 		return nil, errs.Internal("创建用户失败").WithCause(err)
 	}
-	item := s.toItem(c, u)
+	item := s.toItem(ctx, u)
 	return &item, nil
 }
 
-func (s *UserService) Update(c *gin.Context, id int64, req *UserSaveReq) (*UserItem, error) {
+func (s *UserService) Update(ctx context.Context, id int64, req *UserSaveInput) (*UserItem, error) {
 	var u model.SysUser
-	if err := s.DB.WithContext(c).First(&u, id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&u, id).Error; err != nil {
 		return nil, errs.NotFound("用户不存在")
 	}
 	if req.Password != "" {
@@ -177,11 +177,11 @@ func (s *UserService) Update(c *gin.Context, id int64, req *UserSaveReq) (*UserI
 			updates["token_version"] = gorm.Expr("token_version + 1")
 		}
 	}
-	if err := s.DB.WithContext(c).Model(&u).Updates(updates).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&u).Updates(updates).Error; err != nil {
 		return nil, errs.Internal("更新用户失败").WithCause(err)
 	}
-	_ = s.DB.WithContext(c).First(&u, id).Error
-	item := s.toItem(c, &u)
+	_ = s.DB.WithContext(ctx).First(&u, id).Error
+	item := s.toItem(ctx, &u)
 	return &item, nil
 }
 
@@ -193,11 +193,11 @@ func checkStatusChange(u *model.SysUser, target int) error {
 	return nil
 }
 
-func (s *UserService) Delete(c *gin.Context, id int64) error {
+func (s *UserService) Delete(ctx context.Context, id int64) error {
 	if id == 1 {
 		return errs.InvalidParam("内置超级管理员账号不允许删除")
 	}
-	return s.DB.WithContext(c).Transaction(func(tx *gorm.DB) error {
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var u model.SysUser
 		if err := tx.First(&u, id).Error; err != nil {
 			return errs.NotFound("用户不存在")
@@ -215,9 +215,9 @@ func (s *UserService) Delete(c *gin.Context, id int64) error {
 	})
 }
 
-func (s *UserService) SetStatus(c *gin.Context, id int64, req *UserSetStatusReq) error {
+func (s *UserService) SetStatus(ctx context.Context, id int64, req *UserSetStatusInput) error {
 	var u model.SysUser
-	if err := s.DB.WithContext(c).First(&u, id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&u, id).Error; err != nil {
 		return errs.NotFound("用户不存在")
 	}
 	if err := checkStatusChange(&u, req.Status); err != nil {
@@ -227,18 +227,18 @@ func (s *UserService) SetStatus(c *gin.Context, id int64, req *UserSetStatusReq)
 	if req.Status == model.StatusDisabled {
 		updates["token_version"] = gorm.Expr("token_version + 1")
 	}
-	if err := s.DB.WithContext(c).Model(&u).Updates(updates).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&u).Updates(updates).Error; err != nil {
 		return errs.Internal("更新状态失败").WithCause(err)
 	}
 	return nil
 }
 
-func (s *UserService) ResetPassword(c *gin.Context, id int64, req *UserResetPasswordReq) error {
+func (s *UserService) ResetPassword(ctx context.Context, id int64, req *UserResetPasswordInput) error {
 	hash, err := auth.HashPassword(req.Password)
 	if err != nil {
 		return errs.Internal("密码处理失败").WithCause(err)
 	}
-	res := s.DB.WithContext(c).Model(&model.SysUser{ID: id}).Updates(map[string]interface{}{
+	res := s.DB.WithContext(ctx).Model(&model.SysUser{ID: id}).Updates(map[string]interface{}{
 		"password":      hash,
 		"token_version": gorm.Expr("token_version + 1"),
 	})
@@ -251,10 +251,10 @@ func (s *UserService) ResetPassword(c *gin.Context, id int64, req *UserResetPass
 	return nil
 }
 
-func (s *UserService) AssignRoles(c *gin.Context, id int64, req *UserAssignRolesReq) error {
+func (s *UserService) AssignRoles(ctx context.Context, id int64, req *UserAssignRolesInput) error {
 	// 校验角色均存在且启用
 	var validIDs []int64
-	if err := s.DB.WithContext(c).Model(&model.SysRole{}).
+	if err := s.DB.WithContext(ctx).Model(&model.SysRole{}).
 		Where("id IN ? AND status = ?", req.RoleIDs, model.StatusEnabled).
 		Pluck("id", &validIDs).Error; err != nil {
 		return errs.Internal("查询角色失败").WithCause(err)
@@ -262,7 +262,7 @@ func (s *UserService) AssignRoles(c *gin.Context, id int64, req *UserAssignRoles
 	if len(validIDs) != len(req.RoleIDs) {
 		return errs.InvalidParam("存在无效或停用的角色")
 	}
-	return s.DB.WithContext(c).Transaction(func(tx *gorm.DB) error {
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var user model.SysUser
 		if err := tx.First(&user, id).Error; err != nil {
 			return errs.NotFound("用户不存在")
@@ -296,8 +296,8 @@ type ExportUser struct {
 }
 
 // Export 导出用户列表 xlsx,上限 page.MaxExportRows() 行。
-func (s *UserService) Export(c *gin.Context) (*excelize.File, string, error) {
-	q := s.DB.WithContext(c).Model(&model.SysUser{}).Limit(page.MaxExportRows())
+func (s *UserService) Export(ctx context.Context) (*excelize.File, string, error) {
+	q := s.DB.WithContext(ctx).Model(&model.SysUser{}).Limit(page.MaxExportRows())
 	var users []model.SysUser
 	if err := q.Order("id ASC").Find(&users).Error; err != nil {
 		return nil, "", errs.Internal("查询用户失败").WithCause(err)

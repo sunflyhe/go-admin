@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/resp"
@@ -141,4 +142,14 @@ func (a *Authn) LoadRoleIDs(c *gin.Context, userID int64) ([]int64, error) {
 		return nil, errs.Internal("加载角色失败").WithCause(err)
 	}
 	return ids, nil
+}
+
+// ActorFrom 将当前登录用户转换为业务层的最小操作者描述,
+// Handler 以此把登录态传给 Service,避免 Service 依赖 Gin。
+func ActorFrom(c *gin.Context) (service.Actor, bool) {
+	u, ok := CurrentUser(c)
+	if !ok {
+		return service.Actor{}, false
+	}
+	return service.Actor{ID: u.ID, Username: u.Username, IsSuper: u.IsSuperAdmin()}, true
 }

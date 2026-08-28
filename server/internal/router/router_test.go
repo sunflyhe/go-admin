@@ -13,8 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/config"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
-	"github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/test/testutil"
 )
@@ -51,7 +51,7 @@ func newRouterEnv(t *testing.T) *gin.Engine {
 		DB:       db,
 		Logger:   slog.New(slog.DiscardHandler),
 		JWT:      pkgauth.NewManager(cfg.JWT.Secret, 30*time.Minute, 24*time.Hour, "go-admin"),
-		Recorder: service.NewRecorder(db),
+		Recorder: middleware.NewRecorder(db),
 	})
 }
 

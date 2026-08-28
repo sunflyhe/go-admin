@@ -23,12 +23,12 @@ func NewUserHandler(svc *service.UserService) *UserHandler {
 
 // List GET /api/v1/users
 func (h *UserHandler) List(c *gin.Context) {
-	var req service.UserListReq
-	if err := c.ShouldBindQuery(&req); err != nil {
+	var query UserListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
 		resp.Fail(c, errs.InvalidParam("分页参数错误: pageSize 不能超过 100"))
 		return
 	}
-	result, err := h.Svc.List(c, &req)
+	result, err := h.Svc.List(c.Request.Context(), query.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -38,12 +38,12 @@ func (h *UserHandler) List(c *gin.Context) {
 
 // Create POST /api/v1/users
 func (h *UserHandler) Create(c *gin.Context) {
-	var req service.UserSaveReq
+	var req UserCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: 用户名必填(3-64 位),密码至少 8 位"))
 		return
 	}
-	result, err := h.Svc.Create(c, &req)
+	result, err := h.Svc.Create(c.Request.Context(), req.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -58,12 +58,12 @@ func (h *UserHandler) Update(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	var req service.UserSaveReq
+	var req UserUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误"))
 		return
 	}
-	result, err := h.Svc.Update(c, id, &req)
+	result, err := h.Svc.Update(c.Request.Context(), id, req.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -78,7 +78,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	if err := h.Svc.Delete(c, id); err != nil {
+	if err := h.Svc.Delete(c.Request.Context(), id); err != nil {
 		resp.Fail(c, err)
 		return
 	}
@@ -92,12 +92,12 @@ func (h *UserHandler) SetStatus(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	var req service.UserSetStatusReq
+	var req UserSetStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: status 必须为 1(启用)或 2(停用)"))
 		return
 	}
-	if err := h.Svc.SetStatus(c, id, &req); err != nil {
+	if err := h.Svc.SetStatus(c.Request.Context(), id, &service.UserSetStatusInput{Status: req.Status}); err != nil {
 		resp.Fail(c, err)
 		return
 	}
@@ -111,12 +111,12 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	var req service.UserResetPasswordReq
+	var req UserResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: 密码至少 8 位"))
 		return
 	}
-	if err := h.Svc.ResetPassword(c, id, &req); err != nil {
+	if err := h.Svc.ResetPassword(c.Request.Context(), id, &service.UserResetPasswordInput{Password: req.Password}); err != nil {
 		resp.Fail(c, err)
 		return
 	}
@@ -130,12 +130,12 @@ func (h *UserHandler) AssignRoles(c *gin.Context) {
 		resp.Fail(c, err)
 		return
 	}
-	var req service.UserAssignRolesReq
+	var req UserAssignRolesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail(c, errs.InvalidParam("参数错误: roleIds 必填"))
 		return
 	}
-	if err := h.Svc.AssignRoles(c, id, &req); err != nil {
+	if err := h.Svc.AssignRoles(c.Request.Context(), id, &service.UserAssignRolesInput{RoleIDs: req.RoleIDs}); err != nil {
 		resp.Fail(c, err)
 		return
 	}
@@ -144,7 +144,7 @@ func (h *UserHandler) AssignRoles(c *gin.Context) {
 
 // Export GET /api/v1/users/export
 func (h *UserHandler) Export(c *gin.Context) {
-	f, filename, err := h.Svc.Export(c)
+	f, filename, err := h.Svc.Export(c.Request.Context())
 	if err != nil {
 		resp.Fail(c, err)
 		return

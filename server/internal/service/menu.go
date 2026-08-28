@@ -2,7 +2,7 @@
 package service
 
 import (
-	"github.com/gin-gonic/gin"
+	"context"
 	"gorm.io/gorm"
 
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
@@ -24,9 +24,9 @@ type MenuNode struct {
 
 // LoadUserMenus 返回用户可见的菜单树(目录/页面,仅启用)。
 // 超级管理员返回全部;普通用户按角色授权过滤。
-func LoadUserMenus(db *gorm.DB, user *model.SysUser) ([]MenuNode, error) {
+func LoadUserMenus(ctx context.Context, db *gorm.DB, user *model.SysUser) ([]MenuNode, error) {
 	var menus []model.SysMenu
-	q := db.Table("sys_menu").
+	q := db.WithContext(ctx).Table("sys_menu").
 		Where("sys_menu.type IN ? AND sys_menu.status = ?", []int{model.MenuTypeDirectory, model.MenuTypePage}, model.StatusEnabled)
 	if !user.IsSuperAdmin() {
 		q = q.Joins("JOIN sys_role_menu ON sys_role_menu.menu_id = sys_menu.id").
@@ -110,29 +110,29 @@ type MenuService struct{ DB *gorm.DB }
 
 func NewMenuService(db *gorm.DB) *MenuService { return &MenuService{DB: db} }
 
-type MenuSaveReq struct {
+type MenuSaveInput struct {
 	ParentID   int64  `json:"parentId"`
-	Name       string `json:"name" binding:"required,max=64"`
-	Type       int    `json:"type" binding:"required,oneof=1 2 3"`
-	Path       string `json:"path" binding:"max=255"`
-	Component  string `json:"component" binding:"max=255"`
-	Permission string `json:"permission" binding:"max=128"`
-	Icon       string `json:"icon" binding:"max=64"`
+	Name       string `json:"name"`
+	Type       int    `json:"type"`
+	Path       string `json:"path"`
+	Component  string `json:"component"`
+	Permission string `json:"permission"`
+	Icon       string `json:"icon"`
 	Sort       int    `json:"sort"`
-	Status     int    `json:"status" binding:"oneof=1 2"`
+	Status     int    `json:"status"`
 }
 
-func (s *MenuService) Tree(c *gin.Context) ([]MenuNode, error) {
-	return LoadVisibleTree(s.DB.WithContext(c), true)
+func (s *MenuService) Tree(ctx context.Context) ([]MenuNode, error) {
+	return LoadVisibleTree(s.DB.WithContext(ctx), true)
 }
 
-func (s *MenuService) ListAll(c *gin.Context) ([]model.SysMenu, error) {
-	return LoadAll(s.DB.WithContext(c))
+func (s *MenuService) ListAll(ctx context.Context) ([]model.SysMenu, error) {
+	return LoadAll(s.DB.WithContext(ctx))
 }
 
-func (s *MenuService) Create(c *gin.Context, req *MenuSaveReq) (*model.SysMenu, error) {
+func (s *MenuService) Create(ctx context.Context, req *MenuSaveInput) (*model.SysMenu, error) {
 	if req.ParentID != 0 {
-		if err := s.checkParent(c, req.ParentID, req.Type); err != nil {
+		if err := s.checkParent(ctx, req.ParentID, req.Type); err != nil {
 			return nil, err
 		}
 	}
@@ -141,46 +141,46 @@ func (s *MenuService) Create(c *gin.Context, req *MenuSaveReq) (*model.SysMenu, 
 		Path: req.Path, Component: req.Component, Permission: req.Permission,
 		Icon: req.Icon, Sort: req.Sort, Status: req.Status,
 	}
-	if err := s.DB.WithContext(c).Create(m).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Create(m).Error; err != nil {
 		return nil, errs.Internal("创建菜单失败").WithCause(err)
 	}
 	return m, nil
 }
 
-func (s *MenuService) Update(c *gin.Context, id int64, req *MenuSaveReq) (*model.SysMenu, error) {
+func (s *MenuService) Update(ctx context.Context, id int64, req *MenuSaveInput) (*model.SysMenu, error) {
 	var m model.SysMenu
-	if err := s.DB.WithContext(c).First(&m, id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&m, id).Error; err != nil {
 		return nil, errs.NotFound("菜单不存在")
 	}
 	if req.ParentID == id {
 		return nil, errs.InvalidParam("父级不能是自身")
 	}
 	if req.ParentID != 0 {
-		if err := s.checkParent(c, req.ParentID, req.Type); err != nil {
+		if err := s.checkParent(ctx, req.ParentID, req.Type); err != nil {
 			return nil, err
 		}
-		if isDescendant, _ := s.isDescendant(c, id, req.ParentID); isDescendant {
+		if isDescendant, _ := s.isDescendant(ctx, id, req.ParentID); isDescendant {
 			return nil, errs.InvalidParam("父级不能是自身的子节点")
 		}
 	}
 	m.ParentID, m.Name, m.Type = req.ParentID, req.Name, req.Type
 	m.Path, m.Component, m.Permission = req.Path, req.Component, req.Permission
 	m.Icon, m.Sort, m.Status = req.Icon, req.Sort, req.Status
-	if err := s.DB.WithContext(c).Save(&m).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Save(&m).Error; err != nil {
 		return nil, errs.Internal("更新菜单失败").WithCause(err)
 	}
 	return &m, nil
 }
 
-func (s *MenuService) Delete(c *gin.Context, id int64) error {
+func (s *MenuService) Delete(ctx context.Context, id int64) error {
 	var count int64
-	if err := s.DB.WithContext(c).Model(&model.SysMenu{}).Where("parent_id = ?", id).Count(&count).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&model.SysMenu{}).Where("parent_id = ?", id).Count(&count).Error; err != nil {
 		return errs.Internal("查询失败").WithCause(err)
 	}
 	if count > 0 {
 		return errs.InvalidParam("请先删除子菜单")
 	}
-	return s.DB.WithContext(c).Transaction(func(tx *gorm.DB) error {
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&model.SysMenu{}, id).Error; err != nil {
 			return errs.Internal("删除菜单失败").WithCause(err)
 		}
@@ -191,9 +191,9 @@ func (s *MenuService) Delete(c *gin.Context, id int64) error {
 	})
 }
 
-func (s *MenuService) checkParent(c *gin.Context, parentID int64, childType int) error {
+func (s *MenuService) checkParent(ctx context.Context, parentID int64, childType int) error {
 	var parent model.SysMenu
-	if err := s.DB.WithContext(c).First(&parent, parentID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&parent, parentID).Error; err != nil {
 		return errs.NotFound("父级菜单不存在")
 	}
 	if parent.Type == model.MenuTypeButton {
@@ -206,11 +206,11 @@ func (s *MenuService) checkParent(c *gin.Context, parentID int64, childType int)
 }
 
 // isDescendant 逐层向上查 candidate 的祖先链,最多 20 层,防止把自身后代设为父级形成环。
-func (s *MenuService) isDescendant(c *gin.Context, ancestor, candidate int64) (bool, error) {
+func (s *MenuService) isDescendant(ctx context.Context, ancestor, candidate int64) (bool, error) {
 	cur := candidate
 	for i := 0; i < 20; i++ {
 		var m model.SysMenu
-		if err := s.DB.WithContext(c).Select("id", "parent_id").First(&m, cur).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Select("id", "parent_id").First(&m, cur).Error; err != nil {
 			return false, nil
 		}
 		if m.ParentID == ancestor {

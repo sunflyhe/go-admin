@@ -3,7 +3,7 @@
 package service
 
 import (
-	"github.com/gin-gonic/gin"
+	"context"
 	"gorm.io/gorm"
 
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
@@ -28,30 +28,30 @@ type RoleItem struct {
 	MenuIDs     []int64 `json:"menuIds,omitempty"`
 }
 
-type RoleListReq struct {
+type RoleListInput struct {
 	page.Query
-	Name   string `form:"name"`
-	Status int    `form:"status" binding:"omitempty,oneof=1 2"`
+	Name   string ``
+	Status int    ``
 }
 
-type RoleSaveReq struct {
-	Name        string `json:"name" binding:"required,max=64"`
-	Code        string `json:"code" binding:"required,min=2,max=64"`
-	Description string `json:"description" binding:"max=255"`
-	Status      int    `json:"status" binding:"omitempty,oneof=1 2"`
+type RoleSaveInput struct {
+	Name        string `json:"name"`
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Status      int    `json:"status"`
 }
 
-type RoleAssignMenusReq struct {
-	MenuIDs []int64 `json:"menuIds" binding:"required"`
+type RoleAssignMenusInput struct {
+	MenuIDs []int64 `json:"menuIds"`
 }
 
 // ---- RoleService ----
 
-func (s *RoleService) List(c *gin.Context, req *RoleListReq) (*page.Result, error) {
+func (s *RoleService) List(ctx context.Context, req *RoleListInput) (*page.Result, error) {
 	if err := req.Normalize(); err != nil {
 		return nil, err
 	}
-	q := s.DB.WithContext(c).Model(&model.SysRole{})
+	q := s.DB.WithContext(ctx).Model(&model.SysRole{})
 	if req.Name != "" {
 		q = q.Where("name LIKE ?", "%"+req.Name+"%")
 	}
@@ -68,14 +68,14 @@ func (s *RoleService) List(c *gin.Context, req *RoleListReq) (*page.Result, erro
 	}
 	items := make([]RoleItem, 0, len(roles))
 	for i := range roles {
-		items = append(items, s.toItem(c, &roles[i]))
+		items = append(items, s.toItem(ctx, &roles[i]))
 	}
 	return &page.Result{List: items, Total: total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-func (s *RoleService) toItem(c *gin.Context, r *model.SysRole) RoleItem {
+func (s *RoleService) toItem(ctx context.Context, r *model.SysRole) RoleItem {
 	var count int64
-	_ = s.DB.WithContext(c).Model(&model.SysUserRole{}).Where("role_id = ?", r.ID).Count(&count).Error
+	_ = s.DB.WithContext(ctx).Model(&model.SysUserRole{}).Where("role_id = ?", r.ID).Count(&count).Error
 	return RoleItem{
 		ID: r.ID, Name: r.Name, Code: r.Code, Description: r.Description,
 		Builtin: r.Builtin, Status: r.Status, UserCount: count,
@@ -83,9 +83,9 @@ func (s *RoleService) toItem(c *gin.Context, r *model.SysRole) RoleItem {
 	}
 }
 
-func (s *RoleService) Create(c *gin.Context, req *RoleSaveReq) (*RoleItem, error) {
+func (s *RoleService) Create(ctx context.Context, req *RoleSaveInput) (*RoleItem, error) {
 	var count int64
-	if err := s.DB.WithContext(c).Model(&model.SysRole{}).Where("code = ?", req.Code).Count(&count).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&model.SysRole{}).Where("code = ?", req.Code).Count(&count).Error; err != nil {
 		return nil, errs.Internal("查询失败").WithCause(err)
 	}
 	if count > 0 {
@@ -96,20 +96,20 @@ func (s *RoleService) Create(c *gin.Context, req *RoleSaveReq) (*RoleItem, error
 		status = model.StatusEnabled
 	}
 	r := &model.SysRole{Name: req.Name, Code: req.Code, Description: req.Description, Status: status}
-	if err := s.DB.WithContext(c).Create(r).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Create(r).Error; err != nil {
 		return nil, errs.Internal("创建角色失败").WithCause(err)
 	}
-	item := s.toItem(c, r)
+	item := s.toItem(ctx, r)
 	return &item, nil
 }
 
-func (s *RoleService) Update(c *gin.Context, id int64, req *RoleSaveReq) (*RoleItem, error) {
+func (s *RoleService) Update(ctx context.Context, id int64, req *RoleSaveInput) (*RoleItem, error) {
 	var r model.SysRole
-	if err := s.DB.WithContext(c).First(&r, id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&r, id).Error; err != nil {
 		return nil, errs.NotFound("角色不存在")
 	}
 	var count int64
-	if err := s.DB.WithContext(c).Model(&model.SysRole{}).Where("code = ? AND id <> ?", req.Code, id).Count(&count).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&model.SysRole{}).Where("code = ? AND id <> ?", req.Code, id).Count(&count).Error; err != nil {
 		return nil, errs.Internal("查询失败").WithCause(err)
 	}
 	if count > 0 {
@@ -123,29 +123,29 @@ func (s *RoleService) Update(c *gin.Context, id int64, req *RoleSaveReq) (*RoleI
 		r.Status = req.Status
 	}
 	// 角色编码创建后不可修改,避免权限配置漂移
-	if err := s.DB.WithContext(c).Model(&r).Select("name", "description", "status").Updates(r).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&r).Select("name", "description", "status").Updates(r).Error; err != nil {
 		return nil, errs.Internal("更新角色失败").WithCause(err)
 	}
-	item := s.toItem(c, &r)
+	item := s.toItem(ctx, &r)
 	return &item, nil
 }
 
-func (s *RoleService) Delete(c *gin.Context, id int64) error {
+func (s *RoleService) Delete(ctx context.Context, id int64) error {
 	var r model.SysRole
-	if err := s.DB.WithContext(c).First(&r, id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&r, id).Error; err != nil {
 		return errs.NotFound("角色不存在")
 	}
 	if r.Builtin {
 		return errs.InvalidParam("内置角色不允许删除")
 	}
 	var count int64
-	if err := s.DB.WithContext(c).Model(&model.SysUserRole{}).Where("role_id = ?", id).Count(&count).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&model.SysUserRole{}).Where("role_id = ?", id).Count(&count).Error; err != nil {
 		return errs.Internal("查询失败").WithCause(err)
 	}
 	if count > 0 {
 		return errs.InvalidParam("仍有用户持有该角色,请先解除分配")
 	}
-	return s.DB.WithContext(c).Transaction(func(tx *gorm.DB) error {
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&r).Error; err != nil {
 			return errs.Internal("删除角色失败").WithCause(err)
 		}
@@ -156,9 +156,9 @@ func (s *RoleService) Delete(c *gin.Context, id int64) error {
 	})
 }
 
-func (s *RoleService) Menus(c *gin.Context, id int64) ([]int64, error) {
+func (s *RoleService) Menus(ctx context.Context, id int64) ([]int64, error) {
 	var ids []int64
-	if err := s.DB.WithContext(c).Model(&model.SysRoleMenu{}).
+	if err := s.DB.WithContext(ctx).Model(&model.SysRoleMenu{}).
 		Where("role_id = ?", id).Pluck("menu_id", &ids).Error; err != nil {
 		return nil, errs.Internal("查询角色菜单失败").WithCause(err)
 	}
@@ -168,14 +168,14 @@ func (s *RoleService) Menus(c *gin.Context, id int64) ([]int64, error) {
 	return ids, nil
 }
 
-func (s *RoleService) AssignMenus(c *gin.Context, id int64, req *RoleAssignMenusReq) error {
+func (s *RoleService) AssignMenus(ctx context.Context, id int64, req *RoleAssignMenusInput) error {
 	var r model.SysRole
-	if err := s.DB.WithContext(c).First(&r, id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&r, id).Error; err != nil {
 		return errs.NotFound("角色不存在")
 	}
 	if len(req.MenuIDs) > 0 {
 		var valid int64
-		if err := s.DB.WithContext(c).Model(&model.SysMenu{}).
+		if err := s.DB.WithContext(ctx).Model(&model.SysMenu{}).
 			Where("id IN ? AND status = ?", req.MenuIDs, model.StatusEnabled).Count(&valid).Error; err != nil {
 			return errs.Internal("查询菜单失败").WithCause(err)
 		}
@@ -183,7 +183,7 @@ func (s *RoleService) AssignMenus(c *gin.Context, id int64, req *RoleAssignMenus
 			return errs.InvalidParam("存在无效或停用的菜单")
 		}
 	}
-	return s.DB.WithContext(c).Transaction(func(tx *gorm.DB) error {
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("role_id = ?", id).Delete(&model.SysRoleMenu{}).Error; err != nil {
 			return errs.Internal("清理旧菜单关联失败").WithCause(err)
 		}

@@ -25,7 +25,7 @@ type Deps struct {
 	DB       *gorm.DB
 	Logger   *slog.Logger
 	JWT      *pkgauth.Manager
-	Recorder *service.Recorder
+	Recorder *middleware.Recorder
 }
 
 // New 构建 gin 引擎。
@@ -142,7 +142,7 @@ func New(d *Deps) *gin.Engine {
 		return r
 	}
 	fileSvc := service.NewFileService(d.DB, storage, d.Cfg.Upload.MaxSizeMB)
-	fileHandler := handler.NewFileHandler(fileSvc, d.Cfg.Upload.PublicURL)
+	fileHandler := handler.NewFileHandler(fileSvc, d.Cfg.Upload.PublicURL, d.Cfg.Upload.MaxSizeMB)
 	// 公开文件也通过数据库的 is_public 标记校验后再输出。不能把整个上传目录
 	// 直接静态暴露，否则私有文件可按 store_path 绕过鉴权访问。
 	if strings.HasPrefix(d.Cfg.Upload.PublicURL, "/") {

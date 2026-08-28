@@ -19,12 +19,12 @@ func NewLoginLogHandler(svc *service.LoginLogService) *LoginLogHandler {
 
 // List GET /api/v1/login-logs
 func (h *LoginLogHandler) List(c *gin.Context) {
-	var req service.LoginLogListReq
-	if err := c.ShouldBindQuery(&req); err != nil {
+	var query LoginLogListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
 		resp.Fail(c, errs.InvalidParam("分页参数错误"))
 		return
 	}
-	result, err := h.Svc.List(c, &req)
+	result, err := h.Svc.List(c.Request.Context(), query.toInput())
 	if err != nil {
 		resp.Fail(c, err)
 		return

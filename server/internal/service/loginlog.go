@@ -2,9 +2,9 @@
 package service
 
 import (
+	"context"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
@@ -16,19 +16,19 @@ type LoginLogService struct{ DB *gorm.DB }
 
 func NewLoginLogService(db *gorm.DB) *LoginLogService { return &LoginLogService{DB: db} }
 
-type LoginLogListReq struct {
+type LoginLogListInput struct {
 	page.Query
-	Username  string `form:"username"`
-	Success   *bool  `form:"success"`
-	StartTime string `form:"startTime"`
-	EndTime   string `form:"endTime"`
+	Username  string ``
+	Success   *bool  ``
+	StartTime string ``
+	EndTime   string ``
 }
 
-func (s *LoginLogService) List(c *gin.Context, req *LoginLogListReq) (*page.Result, error) {
+func (s *LoginLogService) List(ctx context.Context, req *LoginLogListInput) (*page.Result, error) {
 	if err := req.Normalize(); err != nil {
 		return nil, err
 	}
-	q := s.DB.WithContext(c).Model(&model.SysLoginLog{})
+	q := s.DB.WithContext(ctx).Model(&model.SysLoginLog{})
 	if req.Username != "" {
 		q = q.Where("username LIKE ?", "%"+req.Username+"%")
 	}

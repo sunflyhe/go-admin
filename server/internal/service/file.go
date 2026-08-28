@@ -1,7 +1,10 @@
 // 文件服务:上传校验、元数据管理、鉴权下载。
+// Gin multipart 解析留在 Handler;本服务只接收与 HTTP 无关的输入
+// (文件流、文件名、大小、公开标记、操作者),并保持扩展名/真实 MIME/大小校验不变。
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,11 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
 	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/page"
@@ -47,46 +48,35 @@ func NewFileService(db *gorm.DB, storage Storage, maxSizeMB int) *FileService {
 	return &FileService{DB: db, Storage: storage, MaxSizeMB: maxSizeMB}
 }
 
-type FileListReq struct {
-	page.Query
-	OriginName string `form:"originName"`
-	IsPublic   *bool  `form:"isPublic"`
+// FileUploadInput 上传输入:与 HTTP 无关,由 Handler 从 multipart 解析后构造。
+type FileUploadInput struct {
+	FileName string    // 原始文件名(扩展名校验依据)
+	Size     int64     // 文件大小(字节)
+	Content  io.Reader // 文件内容流
+	IsPublic bool      // 是否公开访问
 }
 
-type UploadResp struct {
+// FileUploadResult 上传结果(URL 由 Handler 按访问前缀拼装)。
+type FileUploadResult struct {
 	ID         int64  `json:"id"`
 	OriginName string `json:"originName"`
 	StorePath  string `json:"storePath"`
 	URL        string `json:"url"`
 	Size       int64  `json:"size"`
 	MIME       string `json:"mime"`
+	IsPublic   bool   `json:"-"` // Handler 据此拼装访问地址
 }
 
-// Upload 处理 multipart 上传:大小、扩展名、真实 MIME 三重校验,随机文件名按日期分目录。
-func (s *FileService) Upload(c *gin.Context, publicURLPrefix string) (*UploadResp, error) {
-	user, ok := middleware.CurrentUser(c)
-	if !ok {
-		return nil, errs.Unauthorized("未登录")
-	}
-	// 大小上限校验
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, int64(s.MaxSizeMB)<<20)
-	fh, err := c.FormFile("file")
-	if err != nil {
-		return nil, errs.InvalidParam(fmt.Sprintf("上传失败: 未找到 file 字段或文件超过 %dMB 限制", s.MaxSizeMB))
-	}
-	ext := strings.ToLower(filepath.Ext(fh.Filename))
+// Upload 上传:扩展名、真实 MIME(基于内容嗅探)校验,随机文件名按日期分目录。
+func (s *FileService) Upload(ctx context.Context, actor Actor, input *FileUploadInput) (*FileUploadResult, error) {
+	ext := strings.ToLower(filepath.Ext(input.FileName))
 	if !allowedExts[ext] {
 		return nil, errs.InvalidParam("不支持的文件类型: " + ext)
 	}
-	src, err := fh.Open()
-	if err != nil {
-		return nil, errs.Internal("读取文件失败").WithCause(err)
-	}
-	defer src.Close()
 
 	// 真实 MIME 校验:基于文件内容嗅探,而非客户端声明
 	head := make([]byte, 512)
-	n, _ := io.ReadFull(src, head)
+	n, _ := io.ReadFull(input.Content, head)
 	mime := http.DetectContentType(head[:n])
 	// text/plain; charset=utf-8 归一化
 	if i := strings.Index(mime, ";"); i > 0 {
@@ -96,41 +86,42 @@ func (s *FileService) Upload(c *gin.Context, publicURLPrefix string) (*UploadRes
 		return nil, errs.InvalidParam("文件真实类型不被允许: " + mime)
 	}
 
-	isPublic := c.PostForm("isPublic") == "true"
 	now := time.Now()
 	relPath := fmt.Sprintf("%04d/%02d/%02d/%s%s", now.Year(), now.Month(), now.Day(), uuid.NewString(), ext)
-	if err := s.Storage.Save(relPath, io.MultiReader(strings.NewReader(string(head[:n])), src)); err != nil {
+	if err := s.Storage.Save(relPath, io.MultiReader(strings.NewReader(string(head[:n])), input.Content)); err != nil {
 		return nil, errs.Internal("保存文件失败").WithCause(err)
 	}
 	entry := &model.SysFile{
-		OriginName: filepath.Base(fh.Filename),
+		OriginName: filepath.Base(input.FileName),
 		StorePath:  relPath,
-		Size:       fh.Size,
+		Size:       input.Size,
 		MIME:       mime,
 		Ext:        ext,
-		IsPublic:   isPublic,
-		UploaderID: user.ID,
-		Uploader:   user.Username,
+		IsPublic:   input.IsPublic,
+		UploaderID: actor.ID,
+		Uploader:   actor.Username,
 	}
-	if err := s.DB.WithContext(c).Create(entry).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Create(entry).Error; err != nil {
 		_ = s.Storage.Delete(relPath)
 		return nil, errs.Internal("记录文件元数据失败").WithCause(err)
 	}
-	url := fmt.Sprintf("%s/%s", publicURLPrefix, relPath)
-	if !isPublic {
-		url = fmt.Sprintf("/api/v1/files/%d/download", entry.ID)
-	}
-	return &UploadResp{
+	return &FileUploadResult{
 		ID: entry.ID, OriginName: entry.OriginName, StorePath: relPath,
-		URL: url, Size: entry.Size, MIME: mime,
+		Size: entry.Size, MIME: mime, IsPublic: entry.IsPublic,
 	}, nil
 }
 
-func (s *FileService) List(c *gin.Context, req *FileListReq) (*page.Result, error) {
+type FileListInput struct {
+	page.Query
+	OriginName string
+	IsPublic   *bool
+}
+
+func (s *FileService) List(ctx context.Context, req *FileListInput) (*page.Result, error) {
 	if err := req.Normalize(); err != nil {
 		return nil, err
 	}
-	q := s.DB.WithContext(c).Model(&model.SysFile{})
+	q := s.DB.WithContext(ctx).Model(&model.SysFile{})
 	if req.OriginName != "" {
 		q = q.Where("origin_name LIKE ?", "%"+req.OriginName+"%")
 	}
@@ -148,12 +139,12 @@ func (s *FileService) List(c *gin.Context, req *FileListReq) (*page.Result, erro
 	return &page.Result{List: files, Total: total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-func (s *FileService) Delete(c *gin.Context, id int64) error {
+func (s *FileService) Delete(ctx context.Context, id int64) error {
 	var entry model.SysFile
-	if err := s.DB.WithContext(c).First(&entry, id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&entry, id).Error; err != nil {
 		return errs.NotFound("文件不存在")
 	}
-	return s.DB.WithContext(c).Transaction(func(tx *gorm.DB) error {
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&entry).Error; err != nil {
 			return errs.Internal("删除文件记录失败").WithCause(err)
 		}
@@ -164,57 +155,31 @@ func (s *FileService) Delete(c *gin.Context, id int64) error {
 	})
 }
 
-// Download 鉴权下载私有文件:任何已登录且具有 system:file:list 权限的用户可下载。
-func (s *FileService) Download(c *gin.Context, id int64) error {
+// GetFile 读取文件元数据(鉴权后的下载入口使用)。
+func (s *FileService) GetFile(ctx context.Context, id int64) (*model.SysFile, error) {
 	var entry model.SysFile
-	if err := s.DB.WithContext(c).First(&entry, id).Error; err != nil {
-		return errs.NotFound("文件不存在")
+	if err := s.DB.WithContext(ctx).First(&entry, id).Error; err != nil {
+		return nil, errs.NotFound("文件不存在")
 	}
-	if entry.IsPublic {
-		c.Redirect(http.StatusFound, "/files/"+entry.StorePath)
-		return nil
-	}
-	f, err := s.Storage.Open(entry.StorePath)
-	if err != nil {
-		return errs.NotFound("文件不存在")
-	}
-	defer f.Close()
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", urlEscape(entry.OriginName)))
-	c.DataFromReader(http.StatusOK, entry.Size, entry.MIME, f, nil)
-	return nil
+	return &entry, nil
 }
 
-// PublicDownload 仅输出数据库中显式标记为公开的文件。storePath 由路由通配符提供，
-// 仍通过 Storage.resolve 约束在存储根目录内。
-func (s *FileService) PublicDownload(c *gin.Context, storePath string) error {
+// OpenFile 打开存储中的文件,由 Handler 负责输出与关闭。
+func (s *FileService) OpenFile(ctx context.Context, relPath string) (*os.File, error) {
+	return s.Storage.Open(relPath)
+}
+
+// GetPublicFile 仅返回数据库中显式标记为公开的文件元数据。storePath 由路由通配符提供。
+func (s *FileService) GetPublicFile(ctx context.Context, storePath string) (*model.SysFile, error) {
 	storePath = strings.TrimPrefix(storePath, "/")
 	if storePath == "" {
-		return errs.NotFound("文件不存在")
+		return nil, errs.NotFound("文件不存在")
 	}
 	var entry model.SysFile
-	if err := s.DB.WithContext(c).
+	if err := s.DB.WithContext(ctx).
 		Where("store_path = ? AND is_public = ?", storePath, true).
 		First(&entry).Error; err != nil {
-		return errs.NotFound("文件不存在")
+		return nil, errs.NotFound("文件不存在")
 	}
-	f, err := s.Storage.Open(entry.StorePath)
-	if err != nil {
-		return errs.NotFound("文件不存在")
-	}
-	defer f.Close()
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename*=UTF-8''%s", urlEscape(entry.OriginName)))
-	c.DataFromReader(http.StatusOK, entry.Size, entry.MIME, f, nil)
-	return nil
-}
-
-func urlEscape(s string) string {
-	var b strings.Builder
-	for _, ch := range []byte(s) {
-		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == '_' {
-			b.WriteByte(ch)
-		} else {
-			fmt.Fprintf(&b, "%%%02X", ch)
-		}
-	}
-	return b.String()
+	return &entry, nil
 }
