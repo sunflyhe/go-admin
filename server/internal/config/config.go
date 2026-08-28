@@ -20,18 +20,18 @@ type Server struct {
 }
 
 type MySQL struct {
-	DSN                string `yaml:"dsn"`
-	MaxOpenConns       int    `yaml:"maxOpenConns"`
-	MaxIdleConns       int    `yaml:"maxIdleConns"`
-	ConnMaxLifetimeSec int    `yaml:"connMaxLifetimeSec"`
-	SlowThresholdMs    int    `yaml:"slowThresholdMs"`
+	DSN                string `yaml:"dsn"`                // 必填:MySQL 连接串,可被 ADMIN_MYSQL_DSN 覆盖
+	MaxOpenConns       int    `yaml:"maxOpenConns"`       // 最大打开连接数,默认 50
+	MaxIdleConns       int    `yaml:"maxIdleConns"`       // 最大空闲连接数,默认 10
+	ConnMaxLifetimeSec int    `yaml:"connMaxLifetimeSec"` // 连接最大存活秒数,默认 3600
+	SlowThresholdMs    int    `yaml:"slowThresholdMs"`    // GORM 慢查询阈值毫秒,默认 500
 }
 
 type JWT struct {
-	Secret           string `yaml:"secret"`
-	AccessTTLMinutes int    `yaml:"accessTTLMinutes"`
-	RefreshTTLHours  int    `yaml:"refreshTTLHours"`
-	Issuer           string `yaml:"issuer"`
+	Secret           string `yaml:"secret"`           // 必填:签名密钥,≥16 位,可被 ADMIN_JWT_SECRET 覆盖
+	AccessTTLMinutes int    `yaml:"accessTTLMinutes"` // access token 有效期分钟,默认 30
+	RefreshTTLHours  int    `yaml:"refreshTTLHours"`  // refresh token 有效期小时,默认 168(7 天)
+	Issuer           string `yaml:"issuer"`           // JWT iss 声明,默认 go-admin
 }
 
 type Log struct {
@@ -39,9 +39,9 @@ type Log struct {
 }
 
 type Upload struct {
-	Dir       string `yaml:"dir"`
-	MaxSizeMB int    `yaml:"maxSizeMB"`
-	PublicURL string `yaml:"publicURL"` // 公开文件访问前缀,例如 /files
+	Dir       string `yaml:"dir"`       // 上传存储根目录,默认 ./data/uploads
+	MaxSizeMB int    `yaml:"maxSizeMB"` // 单文件大小上限 MB,默认 20
+	PublicURL string `yaml:"publicURL"` // 公开文件访问前缀,须以 / 开头,默认 /files
 }
 
 type Audit struct {
