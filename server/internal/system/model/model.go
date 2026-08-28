@@ -3,8 +3,6 @@ package model
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // 账号与角色状态。
@@ -142,14 +140,13 @@ func (SysFile) TableName() string { return "sys_file" }
 
 // SysRefreshToken 刷新令牌登记表,用于轮换与吊销。
 type SysRefreshToken struct {
-	ID        int64          `gorm:"primaryKey" json:"id"`
-	JTI       string         `gorm:"size:64;uniqueIndex" json:"jti"`
-	UserID    int64          `gorm:"index" json:"userId"`
-	ExpiresAt time.Time      `json:"expiresAt"`
-	Revoked   bool           `json:"revoked"`
-	RevokedAt *time.Time     `json:"revokedAt"`
-	CreatedAt time.Time      `json:"createdAt"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID        int64      `gorm:"primaryKey" json:"id"`
+	JTI       string     `gorm:"size:64;uniqueIndex" json:"jti"`
+	UserID    int64      `gorm:"index" json:"userId"`
+	ExpiresAt time.Time  `json:"expiresAt"`
+	Revoked   bool       `json:"revoked"`
+	RevokedAt *time.Time `json:"revokedAt"`
+	CreatedAt time.Time  `json:"createdAt"`
 }
 
 func (SysRefreshToken) TableName() string { return "sys_refresh_token" }

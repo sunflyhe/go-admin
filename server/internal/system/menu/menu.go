@@ -13,22 +13,23 @@ import (
 
 // MenuNode 前端菜单树节点(目录与页面;按钮不进树,以权限码形式下发)。
 type MenuNode struct {
-	ID       int64       `json:"id"`
-	ParentID int64       `json:"parentId"`
-	Name     string      `json:"name"`
-	Type     int         `json:"type"`
-	Path     string      `json:"path"`
-	Component string     `json:"component"`
-	Icon     string      `json:"icon"`
-	Sort     int         `json:"sort"`
-	Children []*MenuNode `json:"children,omitempty"`
+	ID        int64       `json:"id"`
+	ParentID  int64       `json:"parentId"`
+	Name      string      `json:"name"`
+	Type      int         `json:"type"`
+	Path      string      `json:"path"`
+	Component string      `json:"component"`
+	Icon      string      `json:"icon"`
+	Sort      int         `json:"sort"`
+	Children  []*MenuNode `json:"children,omitempty"`
 }
 
 // LoadUserMenus 返回用户可见的菜单树(目录/页面,仅启用)。
 // 超级管理员返回全部;普通用户按角色授权过滤。
 func LoadUserMenus(db *gorm.DB, user *model.SysUser) ([]MenuNode, error) {
 	var menus []model.SysMenu
-	q := db.Where("type IN ? AND status = ?", []int{model.MenuTypeDirectory, model.MenuTypePage}, model.StatusEnabled)
+	q := db.Table("sys_menu").
+		Where("sys_menu.type IN ? AND sys_menu.status = ?", []int{model.MenuTypeDirectory, model.MenuTypePage}, model.StatusEnabled)
 	if !user.IsSuperAdmin() {
 		q = q.Joins("JOIN sys_role_menu ON sys_role_menu.menu_id = sys_menu.id").
 			Joins("JOIN sys_user_role ON sys_user_role.role_id = sys_role_menu.role_id").
@@ -36,7 +37,7 @@ func LoadUserMenus(db *gorm.DB, user *model.SysUser) ([]MenuNode, error) {
 			Where("sys_user_role.user_id = ? AND sys_role.status = ?", user.ID, model.StatusEnabled).
 			Distinct()
 	}
-	if err := q.Order("sort ASC, id ASC").Find(&menus).Error; err != nil {
+	if err := q.Order("sys_menu.sort ASC, sys_menu.id ASC").Find(&menus).Error; err != nil {
 		return nil, errs.Internal("加载菜单失败").WithCause(err)
 	}
 	return buildTree(menus), nil
@@ -66,9 +67,10 @@ func LoadAll(db *gorm.DB) ([]model.SysMenu, error) {
 	return menus, nil
 }
 
+// buildTree 先按指针挂接父子关系,全部挂接完成后再转换输出,避免子节点丢失。
 func buildTree(menus []model.SysMenu) []MenuNode {
 	nodes := make(map[int64]*MenuNode, len(menus))
-	roots := []MenuNode{}
+	var rootPtrs []*MenuNode
 	for i := range menus {
 		m := menus[i]
 		nodes[m.ID] = &MenuNode{
@@ -82,23 +84,18 @@ func buildTree(menus []model.SysMenu) []MenuNode {
 		if parent, ok := nodes[m.ParentID]; ok && m.ParentID != m.ID {
 			parent.Children = append(parent.Children, node)
 		} else {
-			roots = append(roots, *node)
+			rootPtrs = append(rootPtrs, node)
 		}
 	}
-	// 根节点与子节点都保持 sort 升序
-	sortNodes(roots)
 	for _, n := range nodes {
 		sortNodesPtr(n.Children)
 	}
-	return roots
-}
-
-func sortNodes(nodes []MenuNode) {
-	for i := 1; i < len(nodes); i++ {
-		for j := i; j > 0 && nodes[j].Sort < nodes[j-1].Sort; j-- {
-			nodes[j], nodes[j-1] = nodes[j-1], nodes[j]
-		}
+	sortNodesPtr(rootPtrs)
+	roots := make([]MenuNode, 0, len(rootPtrs))
+	for _, p := range rootPtrs {
+		roots = append(roots, *p)
 	}
+	return roots
 }
 
 func sortNodesPtr(nodes []*MenuNode) {
@@ -164,7 +161,6 @@ func (s *Service) Update(c *gin.Context, id int64, req *SaveReq) (*model.SysMenu
 		if err := s.checkParent(c, req.ParentID, req.Type); err != nil {
 			return nil, err
 		}
-		// 禁止把自己的后代设为父级,形成环
 		if isDescendant, _ := s.isDescendant(c, id, req.ParentID); isDescendant {
 			return nil, errs.InvalidParam("父级不能是自身的子节点")
 		}
@@ -211,8 +207,8 @@ func (s *Service) checkParent(c *gin.Context, parentID int64, childType int) err
 	return nil
 }
 
+// isDescendant 逐层向上查 candidate 的祖先链,最多 20 层,防止把自身后代设为父级形成环。
 func (s *Service) isDescendant(c *gin.Context, ancestor, candidate int64) (bool, error) {
-	// 逐层向上查 candidate 的祖先链,最多 20 层,防止把自身后代设为父级形成环。
 	cur := candidate
 	for i := 0; i < 20; i++ {
 		var m model.SysMenu
@@ -273,7 +269,7 @@ func (h *Handler) Create(c *gin.Context) {
 
 // Update PUT /api/v1/menus/:id
 func (h *Handler) Update(c *gin.Context) {
-	id, err := parseID(c)
+	id, err := validate.PathID(c)
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -293,7 +289,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 // Delete DELETE /api/v1/menus/:id
 func (h *Handler) Delete(c *gin.Context) {
-	id, err := parseID(c)
+	id, err := validate.PathID(c)
 	if err != nil {
 		resp.Fail(c, err)
 		return
@@ -303,8 +299,4 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 	resp.OK(c, nil)
-}
-
-func parseID(c *gin.Context) (int64, error) {
-	return validate.PathID(c)
 }

@@ -4,6 +4,7 @@ package database
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -11,14 +12,22 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
+// ensureMultiStatements 为 DSN 补充 multiStatements=true,
+// golang-migrate 执行多语句迁移文件需要该参数。
+func ensureMultiStatements(dsn string) string {
+	if strings.Contains(dsn, "multiStatements") {
+		return dsn
+	}
+	if strings.Contains(dsn, "?") {
+		return dsn + "&multiStatements=true"
+	}
+	return dsn + "?multiStatements=true"
+}
+
 // New 打开 MySQL 连接。仅将 GORM 用于查询映射,库结构由 SQL migration 管理,不使用 AutoMigrate。
 func New(dsn string, maxOpen, maxIdle, connMaxLifetimeSec, slowThresholdMs int) (*gorm.DB, error) {
-	lvl := gormlogger.Warn
-	if slowThresholdMs > 0 {
-		lvl = gormlogger.Warn
-	}
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(lvl),
+	db, err := gorm.Open(mysql.Open(ensureMultiStatements(dsn)), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Warn),
 		// 禁用默认事务包装,写操作在 service 层显式使用事务。
 		SkipDefaultTransaction: true,
 	})

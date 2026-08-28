@@ -1,0 +1,260 @@
+openapi: 3.0.3
+info:
+  title: Go Admin API
+  version: "1.0"
+  description: |
+    统一响应格式: {"code":0,"message":"success","data":{}}
+    code=0 成功;401 未登录/凭据失效;403 无权限;400 参数错误;409 冲突;429 限流。
+    除登录/刷新外,所有接口需要 Authorization: Bearer <accessToken>。
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: auth
+  - name: user
+  - name: role
+  - name: menu
+  - name: log
+  - name: file
+paths:
+  /healthz:
+    get:
+      tags: [auth]
+      summary: 存活探针
+      responses: { "200": { description: ok } }
+  /readyz:
+    get:
+      tags: [auth]
+      summary: 就绪探针(检查数据库)
+      responses: { "200": { description: ready }, "503": { description: not ready } }
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: 登录(失败 5 次锁定 15 分钟)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200": { description: 返回 accessToken/refreshToken/user }
+        "401": { description: 账号或密码错误 }
+        "403": { description: 账号已停用 }
+        "429": { description: 尝试次数过多 }
+  /api/v1/auth/refresh:
+    post:
+      tags: [auth]
+      summary: 刷新令牌(轮换,旧 refresh 立即吊销)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200": { description: 新 token 对 }
+        "401": { description: 凭据无效/已复用 }
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: 退出登录(吊销全部刷新令牌并使 access 立即失效)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: ok } }
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      summary: 当前用户信息、权限码集合与可见菜单树
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: user + permissions + menus } }
+  /api/v1/users:
+    get:
+      tags: [user]
+      summary: 用户列表(权限码 system:user:list)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: pageSize, in: query, schema: { type: integer, maximum: 100 } }
+        - { name: username, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: integer, enum: [1, 2] } }
+      responses: { "200": { description: 分页列表 }, "403": { description: 无权限 } }
+    post:
+      tags: [user]
+      summary: 创建用户(system:user:create)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, minLength: 3 }
+                password: { type: string, minLength: 8 }
+                nickname: { type: string }
+                email: { type: string }
+                phone: { type: string }
+                status: { type: integer, enum: [1, 2] }
+      responses: { "201": { description: created }, "409": { description: 用户名已存在 } }
+  /api/v1/users/{id}:
+    put:
+      tags: [user]
+      summary: 更新用户(system:user:update;密码走重置接口)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+    delete:
+      tags: [user]
+      summary: 删除用户(system:user:delete;内置超管不可删)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+  /api/v1/users/{id}/status:
+    put:
+      tags: [user]
+      summary: 启用/停用(system:user:update;停用立即失效凭据)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+  /api/v1/users/{id}/password:
+    put:
+      tags: [user]
+      summary: 重置密码(system:user:reset-password;重置后旧凭据失效)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+  /api/v1/users/{id}/roles:
+    put:
+      tags: [user]
+      summary: 分配角色(system:user:assign-role)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+  /api/v1/users/export:
+    get:
+      tags: [user]
+      summary: 导出用户 xlsx(system:user:export,上限 10000 行)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: xlsx 文件流 } }
+  /api/v1/roles:
+    get:
+      tags: [role]
+      summary: 角色列表(system:role:list)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: 分页列表 } }
+    post:
+      tags: [role]
+      summary: 创建角色(system:role:create)
+      security: [{ bearerAuth: [] }]
+      responses: { "201": { description: created } }
+  /api/v1/roles/{id}:
+    put:
+      tags: [role]
+      summary: 更新角色(system:role:update;编码不可改,内置角色不可停用)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+    delete:
+      tags: [role]
+      summary: 删除角色(system:role:delete;内置角色不可删)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+  /api/v1/roles/{id}/menus:
+    get:
+      tags: [role]
+      summary: 查看角色已授权菜单 ID
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: menuIds } }
+    put:
+      tags: [role]
+      summary: 分配菜单(system:role:assign-menu)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+  /api/v1/menus:
+    get:
+      tags: [menu]
+      summary: 全部菜单(平铺,system:menu:list)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: 菜单列表 } }
+    post:
+      tags: [menu]
+      summary: 创建菜单(system:menu:create)
+      security: [{ bearerAuth: [] }]
+      responses: { "201": { description: created } }
+  /api/v1/menus/tree:
+    get:
+      tags: [menu]
+      summary: 菜单树(含按钮)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: 树 } }
+  /api/v1/menus/{id}:
+    put:
+      tags: [menu]
+      summary: 更新菜单(system:menu:update)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+    delete:
+      tags: [menu]
+      summary: 删除菜单(system:menu:delete;需先删子级)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+  /api/v1/login-logs:
+    get:
+      tags: [log]
+      summary: 登录日志(system:loginlog:list)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: 分页列表 } }
+  /api/v1/audit-logs:
+    get:
+      tags: [log]
+      summary: 操作审计日志(敏感字段已脱敏,system:auditlog:list)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: 分页列表 } }
+  /api/v1/files:
+    post:
+      tags: [file]
+      summary: 上传文件(multipart,字段名 file;isPublic=true|false;system:file:upload)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                isPublic: { type: string, enum: ["true", "false"] }
+      responses: { "201": { description: url/storePath }, "400": { description: 类型或大小不合规 } }
+    get:
+      tags: [file]
+      summary: 文件列表(system:file:list)
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: 分页列表 } }
+  /api/v1/files/{id}/download:
+    get:
+      tags: [file]
+      summary: 下载私有文件(登录即可)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: 文件流 } }
+  /api/v1/files/{id}:
+    delete:
+      tags: [file]
+      summary: 删除文件(system:file:delete)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok } }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

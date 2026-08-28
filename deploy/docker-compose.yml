@@ -1,0 +1,40 @@
+# 本地/交付示例:MySQL + 后端单二进制(内含前端静态文件需先构建并设置 server.webDir)
+# 本示例不使用 Redis——本项目无 Redis 强依赖。
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: change-me-root
+      MYSQL_DATABASE: go_admin
+      MYSQL_USER: goadmin
+      MYSQL_PASSWORD: change-me-app
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ADMIN_MYSQL_DSN: "goadmin:change-me-app@tcp(mysql:3306)/go_admin?charset=utf8mb4&parseTime=True&loc=Local"
+      # 生产环境务必替换为至少 32 位随机串
+      ADMIN_JWT_SECRET: "please-replace-with-random-32-chars-secret"
+      ADMIN_SERVER_ADDR: ":8080"
+      ADMIN_UPLOAD_DIR: "/data/uploads"
+    volumes:
+      - upload_data:/data/uploads
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:
+  upload_data:
