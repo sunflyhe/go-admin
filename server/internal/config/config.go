@@ -12,7 +12,9 @@ import (
 )
 
 type Server struct {
-	Addr   string `yaml:"addr"`
+	Addr string `yaml:"addr"`
+	// Gin 运行模式:debug(开发,带调试输出)/ release(生产,静默)/ test(测试,静默)。
+	// 仅影响 Gin 自身日志,不影响业务逻辑;生产环境必须用 release。
 	Mode   string `yaml:"mode"`   // debug | release | test
 	WebDir string `yaml:"webDir"` // 前端静态文件目录(可选,设置后由后端托管 web/dist)
 }
