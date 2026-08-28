@@ -1,55 +1,45 @@
 <template>
-  <el-card>
-    <div class="toolbar">
-      <el-input v-model="query.username" placeholder="用户名" clearable style="width: 180px" @keyup.enter="load" />
-      <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px">
+  <PaginatedTable ref="tableRef" :fetch="userApi.list" :query="filters">
+    <template #toolbar>
+      <el-input v-model="filters.username" placeholder="用户名" clearable style="width: 180px" @keyup.enter="tableRef?.load()" />
+      <el-select v-model="filters.status" placeholder="状态" clearable style="width: 120px">
         <el-option label="启用" :value="1" />
         <el-option label="停用" :value="2" />
       </el-select>
-      <el-button type="primary" @click="load">查询</el-button>
+      <el-button type="primary" @click="tableRef?.load()">查询</el-button>
       <el-button v-perm="'system:user:create'" type="success" @click="openCreate">新建用户</el-button>
       <el-button v-perm="'system:user:export'" @click="onExport">导出 Excel</el-button>
-    </div>
+    </template>
 
-    <el-table :data="rows" border stripe v-loading="loading">
-      <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="username" label="用户名" />
-      <el-table-column prop="nickname" label="昵称" />
-      <el-table-column prop="email" label="邮箱" />
-      <el-table-column prop="phone" label="手机号" />
-      <el-table-column label="状态" width="90">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="lastLoginAt" label="最后登录" width="170" />
-      <el-table-column label="操作" width="330" fixed="right">
-        <template #default="{ row }">
-          <el-button v-perm="'system:user:update'" size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button v-perm="'system:user:reset-password'" size="small" @click="onResetPassword(row)">重置密码</el-button>
-          <el-button v-perm="'system:user:assign-role'" size="small" @click="openRoles(row)">分配角色</el-button>
-          <el-button
-            v-perm="'system:user:update'"
-            size="small"
-            :type="row.status === 1 ? 'warning' : 'success'"
-            :disabled="row.super"
-            @click="onToggleStatus(row)"
-          >
-            {{ row.status === 1 ? '停用' : '启用' }}
-          </el-button>
-          <el-button v-perm="'system:user:delete'" size="small" type="danger" :disabled="row.super" @click="onDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.pageSize"
-      :total="total"
-      layout="total, prev, pager, next"
-      style="margin-top: 12px; justify-content: flex-end"
-      @current-change="load"
-    />
-  </el-card>
+    <el-table-column prop="id" label="ID" width="70" />
+    <el-table-column prop="username" label="用户名" />
+    <el-table-column prop="nickname" label="昵称" />
+    <el-table-column prop="email" label="邮箱" />
+    <el-table-column prop="phone" label="手机号" />
+    <el-table-column label="状态" width="90">
+      <template #default="{ row }">
+        <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
+      </template>
+    </el-table-column>
+    <el-table-column prop="lastLoginAt" label="最后登录" width="170" />
+    <el-table-column label="操作" width="330" fixed="right">
+      <template #default="{ row }">
+        <el-button v-perm="'system:user:update'" size="small" @click="openEdit(row)">编辑</el-button>
+        <el-button v-perm="'system:user:reset-password'" size="small" @click="onResetPassword(row)">重置密码</el-button>
+        <el-button v-perm="'system:user:assign-role'" size="small" @click="openRoles(row)">分配角色</el-button>
+        <el-button
+          v-perm="'system:user:update'"
+          size="small"
+          :type="row.status === 1 ? 'warning' : 'success'"
+          :disabled="row.super"
+          @click="onToggleStatus(row)"
+        >
+          {{ row.status === 1 ? '停用' : '启用' }}
+        </el-button>
+        <el-button v-perm="'system:user:delete'" size="small" type="danger" :disabled="row.super" @click="onDelete(row)">删除</el-button>
+      </template>
+    </el-table-column>
+  </PaginatedTable>
 
   <!-- 新建/编辑 -->
   <el-dialog v-model="editVisible" :title="editForm.id ? '编辑用户' : '新建用户'" width="480px">
@@ -86,16 +76,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi, roleApi, type UserItem, type RoleItem } from '../../../api'
-import { useAuthStore } from '../../../stores/auth'
+import PaginatedTable from '../../../components/PaginatedTable.vue'
 
-const auth = useAuthStore()
-const rows = ref<UserItem[]>([])
-const total = ref(0)
-const loading = ref(false)
-const query = reactive({ page: 1, pageSize: 20, username: '', status: undefined as number | undefined })
+const tableRef = ref<{ load: () => Promise<void> } | undefined>()
+const filters = reactive<{ username: string; status?: number }>({ username: '', status: undefined })
 
 const editVisible = ref(false)
 const editForm = reactive({ id: 0, username: '', password: '', nickname: '', email: '', phone: '', status: 1 })
@@ -104,17 +91,6 @@ const rolesVisible = ref(false)
 const selectedRoleIds = ref<number[]>([])
 const allRoles = ref<RoleItem[]>([])
 let rolesTarget = 0
-
-async function load() {
-  loading.value = true
-  try {
-    const { data } = await userApi.list({ ...query })
-    rows.value = data.data.list
-    total.value = data.data.total
-  } finally {
-    loading.value = false
-  }
-}
 
 function openCreate() {
   Object.assign(editForm, { id: 0, username: '', password: '', nickname: '', email: '', phone: '', status: 1 })
@@ -139,20 +115,20 @@ async function save() {
   }
   ElMessage.success('保存成功')
   editVisible.value = false
-  load()
+  tableRef.value?.load()
 }
 
 async function onDelete(row: UserItem) {
   await ElMessageBox.confirm(`确认删除用户「${row.username}」?`, '提示', { type: 'warning' })
   await userApi.remove(row.id)
   ElMessage.success('删除成功')
-  load()
+  tableRef.value?.load()
 }
 
 async function onToggleStatus(row: UserItem) {
   await userApi.setStatus(row.id, row.status === 1 ? 2 : 1)
   ElMessage.success('操作成功')
-  load()
+  tableRef.value?.load()
 }
 
 async function onResetPassword(row: UserItem) {
@@ -177,7 +153,7 @@ async function saveRoles() {
   await userApi.assignRoles(rolesTarget, selectedRoleIds.value)
   ElMessage.success('分配成功,该用户需重新登录生效')
   rolesVisible.value = false
-  load()
+  tableRef.value?.load()
 }
 
 function onExport() {
@@ -194,12 +170,5 @@ function onExport() {
       URL.revokeObjectURL(url)
     })
     .catch(() => ElMessage.error('导出失败'))
-    .finally(() => auth.hasPerm('system:user:export'))
 }
-
-onMounted(load)
 </script>
-
-<style scoped>
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-</style>

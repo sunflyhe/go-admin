@@ -89,8 +89,10 @@ npm run build      # 生产构建,产物在 web/dist
 
 ```bash
 cd server && go test ./... && go vet ./...
-cd web && npm run build   # 含 vue-tsc 类型检查
+cd web && npm run lint && npm run typecheck && npm run build
 ```
+
+前端工程包含 ESLint(Flat Config)+ Prettier;`npm run typecheck` 同时覆盖 src 与 vite.config.ts。
 
 ## API 文档
 

@@ -1,5 +1,6 @@
 import request from './request'
 import type { ApiBody } from './request'
+export type { ApiBody }
 
 export interface MenuNode {
   id: number
