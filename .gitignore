@@ -1,5 +1,5 @@
 server/data/
-server/config.yaml
+server/config/config.yaml
 web/node_modules/
 web/dist/
 *.log

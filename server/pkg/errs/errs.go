@@ -10,15 +10,15 @@ import (
 
 // 业务错误码。按 HTTP 语义分段,便于前端统一处理。
 const (
-	CodeOK             = 0
-	CodeInvalidParam   = 40000
-	CodeUnauthorized   = 40100
-	CodeTokenExpired   = 40101
-	CodeForbidden      = 40300
-	CodeNotFound       = 40400
-	CodeConflict       = 40900
-	CodeTooManyReqs    = 42900
-	CodeInternal       = 50000
+	CodeOK                 = 0
+	CodeInvalidParam       = 40000
+	CodeUnauthorized       = 40100
+	CodeTokenExpired       = 40101
+	CodeForbidden          = 40300
+	CodeNotFound           = 40400
+	CodeConflict           = 40900
+	CodeTooManyReqs        = 42900
+	CodeInternal           = 50000
 	CodeServiceUnavailable = 50300
 )
 
