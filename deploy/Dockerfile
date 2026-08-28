@@ -4,7 +4,7 @@ WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ .
-RUN CGO_ENABLED=0 go build -o /out/server ./bin/server
+RUN CGO_ENABLED=0 go build -o /out/server ./bin
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata

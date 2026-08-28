@@ -11,7 +11,7 @@
 
 ```text
 server/                  Go 后端(单二进制)
-├── bin/server/          启动入口                     ≈ bin/hyperf.php
+├── bin/                 启动入口 main.go             ≈ bin/hyperf.php
 ├── app/
 │   ├── controller/      HTTP 控制器(参数绑定+响应)   ≈ app/Controller
 │   ├── service/         业务逻辑 + 领域服务            ≈ app/Service
@@ -52,7 +52,7 @@ cp config/config.example.yaml config/config.yaml
 
 ```bash
 cd server
-go run ./bin/server -config config/config.yaml
+go run ./bin -config config/config.yaml
 ```
 
 服务启动时会自动执行未应用的迁移与幂等种子数据;也可用 `server/migrations/` 下的 SQL 手工执行。
