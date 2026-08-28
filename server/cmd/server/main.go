@@ -13,17 +13,17 @@ import (
 	"syscall"
 	"time"
 
-	service "github.com/hesunfly/hesunfly-admin-go/server/app/service"
-	"github.com/hesunfly/hesunfly-admin-go/server/config"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/config"
+	router "github.com/hesunfly/hesunfly-admin-go/server/internal/router"
+	service "github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/database"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/logger"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/migrate"
-	router "github.com/hesunfly/hesunfly-admin-go/server/routes"
 )
 
 func main() {
-	configPath := flag.String("config", "config/config.yaml", "配置文件路径")
+	configPath := flag.String("config", "configs/config.yaml", "配置文件路径")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)

@@ -17,14 +17,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/middleware"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/page"
 )
 
 const (
-	skipHeader      = "X-Audit-Skip"
 	maxBodyCapture  = 2 * 1024 // 请求/响应摘要捕获上限
 	maxChannelQueue = 1024
 )
@@ -120,7 +119,6 @@ func (r *Recorder) Close() {
 }
 
 // Middleware 审计中间件:记录操作者、接口、方法、状态码、耗时、IP、UA 与脱敏请求摘要。
-// 通过设置请求头 X-Audit-Skip: 1 可跳过(如文件上传等无法解析体或已单独记录的场景)。
 func (r *Recorder) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		switch c.Request.Method {
@@ -129,7 +127,7 @@ func (r *Recorder) Middleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if c.GetHeader(skipHeader) != "" || c.ContentType() != "application/json" {
+		if c.ContentType() != "application/json" {
 			c.Next()
 			return
 		}

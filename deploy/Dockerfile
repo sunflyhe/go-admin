@@ -4,11 +4,11 @@ WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ .
-RUN CGO_ENABLED=0 go build -o /out/server ./bin
+RUN CGO_ENABLED=0 go build -o /out/server ./cmd/server
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /out/server /app/server
 EXPOSE 8080
-ENTRYPOINT ["/app/server", "-config", "/app/config.yaml"]
+ENTRYPOINT ["/app/server", "-config", "/app/configs/config.yaml"]

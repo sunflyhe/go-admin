@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/glebarez/sqlite"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"gorm.io/gorm"
 )

@@ -1,10 +1,10 @@
 // 操作审计日志控制器。
-package controller
+package handler
 
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/service"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/resp"
 )

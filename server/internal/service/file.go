@@ -15,8 +15,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/middleware"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/page"
 )
@@ -171,7 +171,6 @@ func (s *FileService) Download(c *gin.Context, id int64) error {
 		return errs.NotFound("文件不存在")
 	}
 	if entry.IsPublic {
-		c.Header("X-Audit-Skip", "1")
 		c.Redirect(http.StatusFound, "/files/"+entry.StorePath)
 		return nil
 	}
@@ -185,13 +184,36 @@ func (s *FileService) Download(c *gin.Context, id int64) error {
 	return nil
 }
 
+// PublicDownload 仅输出数据库中显式标记为公开的文件。storePath 由路由通配符提供，
+// 仍通过 Storage.resolve 约束在存储根目录内。
+func (s *FileService) PublicDownload(c *gin.Context, storePath string) error {
+	storePath = strings.TrimPrefix(storePath, "/")
+	if storePath == "" {
+		return errs.NotFound("文件不存在")
+	}
+	var entry model.SysFile
+	if err := s.DB.WithContext(c).
+		Where("store_path = ? AND is_public = ?", storePath, true).
+		First(&entry).Error; err != nil {
+		return errs.NotFound("文件不存在")
+	}
+	f, err := s.Storage.Open(entry.StorePath)
+	if err != nil {
+		return errs.NotFound("文件不存在")
+	}
+	defer f.Close()
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename*=UTF-8''%s", urlEscape(entry.OriginName)))
+	c.DataFromReader(http.StatusOK, entry.Size, entry.MIME, f, nil)
+	return nil
+}
+
 func urlEscape(s string) string {
 	var b strings.Builder
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
-			b.WriteRune(r)
+	for _, ch := range []byte(s) {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == '_' {
+			b.WriteByte(ch)
 		} else {
-			fmt.Fprintf(&b, "%%%02X", r)
+			fmt.Fprintf(&b, "%%%02X", ch)
 		}
 	}
 	return b.String()

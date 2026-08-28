@@ -1,5 +1,5 @@
 // 路由注册:对应 Hyperf 的 config/routes.php,集中声明 API 路由与中间件。
-package routes
+package router
 
 import (
 	"log/slog"
@@ -11,10 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/controller"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/middleware"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/service"
-	"github.com/hesunfly/hesunfly-admin-go/server/config"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/config"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/handler"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 )
@@ -48,11 +48,6 @@ func New(d *Deps) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
 
-	// 公开文件静态访问(存储由 Local Storage 管理,http.Dir 自带防穿越)
-	if local, ok := fileStorageDir(d); ok && strings.HasPrefix(d.Cfg.Upload.PublicURL, "/") {
-		r.Static(d.Cfg.Upload.PublicURL, local)
-	}
-
 	// 前端静态托管(可选):优先 API,其次静态资源,未命中回退 index.html
 	webDir := d.Cfg.Server.WebDir
 	if webDir != "" {
@@ -81,7 +76,7 @@ func New(d *Deps) *gin.Engine {
 
 	// 认证:公开接口
 	authSvc := service.NewAuthService(d.DB, d.JWT, d.Logger)
-	authHandler := controller.NewAuthHandler(authSvc)
+	authHandler := handler.NewAuthHandler(authSvc)
 	api.POST("/auth/login", authHandler.Login)
 	api.POST("/auth/refresh", authHandler.Refresh)
 
@@ -93,7 +88,7 @@ func New(d *Deps) *gin.Engine {
 
 	// 用户管理
 	userSvc := service.NewUserService(d.DB)
-	userHandler := controller.NewUserHandler(userSvc)
+	userHandler := handler.NewUserHandler(userSvc)
 	ug := authed.Group("/users")
 	{
 		ug.GET("", authn.RequirePerm("system:user:list"), userHandler.List)
@@ -108,7 +103,7 @@ func New(d *Deps) *gin.Engine {
 
 	// 角色管理
 	roleSvc := service.NewRoleService(d.DB)
-	roleHandler := controller.NewRoleHandler(roleSvc)
+	roleHandler := handler.NewRoleHandler(roleSvc)
 	rg := authed.Group("/roles")
 	{
 		rg.GET("", authn.RequirePerm("system:role:list"), roleHandler.List)
@@ -121,7 +116,7 @@ func New(d *Deps) *gin.Engine {
 
 	// 菜单管理
 	menuSvc := service.NewMenuService(d.DB)
-	menuHandler := controller.NewMenuHandler(menuSvc)
+	menuHandler := handler.NewMenuHandler(menuSvc)
 	mg := authed.Group("/menus")
 	{
 		mg.GET("", authn.RequirePerm("system:menu:list"), menuHandler.List)
@@ -133,11 +128,11 @@ func New(d *Deps) *gin.Engine {
 
 	// 日志
 	auditSvc := service.NewAuditService(d.DB)
-	auditHandler := controller.NewAuditHandler(auditSvc)
+	auditHandler := handler.NewAuditHandler(auditSvc)
 	authed.GET("/audit-logs", authn.RequirePerm("system:auditlog:list"), auditHandler.List)
 
 	llSvc := service.NewLoginLogService(d.DB)
-	llHandler := controller.NewLoginLogHandler(llSvc)
+	llHandler := handler.NewLoginLogHandler(llSvc)
 	authed.GET("/login-logs", authn.RequirePerm("system:loginlog:list"), llHandler.List)
 
 	// 文件
@@ -147,25 +142,19 @@ func New(d *Deps) *gin.Engine {
 		return r
 	}
 	fileSvc := service.NewFileService(d.DB, storage, d.Cfg.Upload.MaxSizeMB)
-	fileHandler := controller.NewFileHandler(fileSvc, d.Cfg.Upload.PublicURL)
+	fileHandler := handler.NewFileHandler(fileSvc, d.Cfg.Upload.PublicURL)
+	// 公开文件也通过数据库的 is_public 标记校验后再输出。不能把整个上传目录
+	// 直接静态暴露，否则私有文件可按 store_path 绕过鉴权访问。
+	if strings.HasPrefix(d.Cfg.Upload.PublicURL, "/") {
+		r.GET(d.Cfg.Upload.PublicURL+"/*storePath", fileHandler.PublicDownload)
+	}
 	fg := authed.Group("/files")
 	{
 		fg.POST("", authn.RequirePerm("system:file:upload"), fileHandler.Upload)
 		fg.GET("", authn.RequirePerm("system:file:list"), fileHandler.List)
 		fg.DELETE("/:id", authn.RequirePerm("system:file:delete"), fileHandler.Delete)
-		fg.GET("/:id/download", fileHandler.Download)
+		fg.GET("/:id/download", authn.RequirePerm("system:file:list"), fileHandler.Download)
 	}
 
 	return r
-}
-
-func fileStorageDir(d *Deps) (string, bool) {
-	abs, err := filepath.Abs(d.Cfg.Upload.Dir)
-	if err != nil {
-		return "", false
-	}
-	if _, err := os.Stat(abs); err != nil {
-		_ = os.MkdirAll(abs, 0o755)
-	}
-	return abs, true
 }

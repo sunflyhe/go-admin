@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	"github.com/hesunfly/hesunfly-admin-go/server/test/testutil"
 )
 

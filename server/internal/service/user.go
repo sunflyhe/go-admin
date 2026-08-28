@@ -13,7 +13,7 @@ import (
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/page"
@@ -263,6 +263,10 @@ func (s *UserService) AssignRoles(c *gin.Context, id int64, req *UserAssignRoles
 		return errs.InvalidParam("存在无效或停用的角色")
 	}
 	return s.DB.WithContext(c).Transaction(func(tx *gorm.DB) error {
+		var user model.SysUser
+		if err := tx.First(&user, id).Error; err != nil {
+			return errs.NotFound("用户不存在")
+		}
 		if err := tx.Where("user_id = ?", id).Delete(&model.SysUserRole{}).Error; err != nil {
 			return errs.Internal("清理旧角色失败").WithCause(err)
 		}

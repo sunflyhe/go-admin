@@ -1,10 +1,10 @@
 // 文件控制器:上传、列表、删除、下载。
-package controller
+package handler
 
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/service"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/resp"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/validate"
@@ -21,13 +21,20 @@ func NewFileHandler(svc *service.FileService, publicURLPrefix string) *FileHandl
 
 // Upload POST /api/v1/files
 func (h *FileHandler) Upload(c *gin.Context) {
-	c.Header("X-Audit-Skip", "1")
 	result, err := h.Svc.Upload(c, h.PublicURLPrefix)
 	if err != nil {
 		resp.Fail(c, err)
 		return
 	}
 	resp.Created(c, result)
+}
+
+// PublicDownload GET /files/*storePath
+// 公开下载无需登录，但服务端必须确认对应文件元数据仍标记为公开。
+func (h *FileHandler) PublicDownload(c *gin.Context) {
+	if err := h.Svc.PublicDownload(c, c.Param("storePath")); err != nil {
+		resp.Fail(c, err)
+	}
 }
 
 // List GET /api/v1/files

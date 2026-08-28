@@ -1,5 +1,5 @@
 // 路由层集成测试:验证不同角色的服务端权限差异(P1 验收项)。
-package routes
+package router
 
 import (
 	"encoding/json"
@@ -12,9 +12,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/service"
-	"github.com/hesunfly/hesunfly-admin-go/server/config"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/config"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/test/testutil"
 )

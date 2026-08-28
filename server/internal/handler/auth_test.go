@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"bytes"
@@ -11,9 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/middleware"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/service"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/service"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/test/testutil"
 )

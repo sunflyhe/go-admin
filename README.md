@@ -7,28 +7,28 @@
 
 ## 目录结构
 
-后端目录布局**参照 Hyperf 的习惯设计**(bin/、config/、app/、migrations/),从 Hyperf 迁移过来的开发者可以直接对号入座:
+后端采用 Go 社区通行的分层布局(golang-standards/project-layout 风格),按技术角色横切分层:
 
 ```text
 server/                  Go 后端(单二进制)
-├── bin/                 启动入口 main.go             ≈ bin/hyperf.php
-├── app/
-│   ├── controller/      HTTP 控制器(参数绑定+响应)   ≈ app/Controller
-│   ├── service/         业务逻辑 + 领域服务            ≈ app/Service
-│   ├── model/           GORM 数据模型                 ≈ app/Model
-│   └── middleware/      请求 ID/访问日志/恢复/认证/权限  ≈ app/Middleware
-├── config/              配置加载代码 + config.example.yaml ≈ config/(autoload)
-├── routes/              路由注册                      ≈ config/routes.php
-├── pkg/                 无业务语义的通用包(JWT、DB、日志、迁移、错误码、响应、分页、校验)
-├── migrations/          SQL migration(embed,启动时自动执行 up)≈ migrations/
-├── test/                测试基础设施                  ≈ test/
-└── config/config.example.yaml
+├── cmd/server/main.go   启动入口
+├── internal/            私有代码(编译器禁止外部模块导入)
+│   ├── handler/         HTTP 处理器(参数绑定+响应)
+│   ├── service/         业务逻辑(含请求/响应 DTO,按域前缀命名如 UserSaveReq)
+│   ├── model/           GORM 数据模型
+│   ├── middleware/      请求 ID/访问日志/恢复/认证/权限校验
+│   ├── config/          配置加载(文件 + 环境变量覆盖)
+│   └── router/          路由注册与服务装配
+├── pkg/                 无业务语义、可复用的通用包(JWT、DB、日志、迁移、错误码、响应、分页、校验)
+├── migrations/          SQL migration(embed,启动时自动执行 up)
+├── test/                测试基础设施(内存库 + 种子)
+└── configs/             配置示例(configs/config.example.yaml)
 web/       Vue3 管理端
 deploy/    Dockerfile 与 docker-compose 示例
 docs/      OpenAPI 文档
 ```
 
-与 Hyperf 的差异:Go 无注解与自动 DI,服务在 `routes/` 中手工装配;请求 DTO 定义在各 service 文件内(相当于 FormRequest 内联);`pkg/` 对应"框架级组件"。
+约定:新增业务模块时,handler/service/各自加文件、model 进 model 包,路由在 internal/router 注册;`internal/` 与 `pkg/` 的分界是"是否可被其他项目复用"。
 
 ## 快速开始(本地)
 
@@ -42,17 +42,17 @@ mysql -uroot -p -e "CREATE DATABASE go_admin DEFAULT CHARACTER SET utf8mb4 COLLA
 
 ```bash
 cd server
-cp config/config.example.yaml config/config.yaml
-# 编辑 config/config.yaml:填写 mysql.dsn 与 jwt.secret(至少 16 位,建议 32 位随机串)
+cp configs/config.example.yaml configs/config.yaml
+# 编辑 configs/config.yaml:填写 mysql.dsn 与 jwt.secret(至少 16 位,建议 32 位随机串)
 ```
 
-或完全用环境变量(优先级高于文件):`ADMIN_MYSQL_DSN`、`ADMIN_JWT_SECRET`、`ADMIN_SERVER_ADDR` 等,见 `config/config.example.yaml` 注释。
+或完全用环境变量(优先级高于文件):`ADMIN_MYSQL_DSN`、`ADMIN_JWT_SECRET`、`ADMIN_SERVER_ADDR` 等,见 `configs/config.example.yaml` 注释。
 
 ### 3. 启动(空库自动迁移 + 种子)
 
 ```bash
 cd server
-go run ./bin -config config/config.yaml
+go run ./cmd/server -config configs/config.yaml
 ```
 
 服务启动时会自动执行未应用的迁移与幂等种子数据;也可用 `server/migrations/` 下的 SQL 手工执行。
@@ -66,7 +66,7 @@ npm run dev        # 开发模式,代理到 localhost:8080
 npm run build      # 生产构建,产物在 web/dist
 ```
 
-生产部署时把 `server/config/config.yaml` 的 `server.webDir` 指向 `web/dist` 即可由后端单二进制托管前端;或用 Nginx 单独托管前端静态文件。
+生产部署时把 `server/configs/config.yaml` 的 `server.webDir` 指向 `web/dist` 即可由后端单二进制托管前端;或用 Nginx 单独托管前端静态文件。
 
 ### 5. 默认账号
 

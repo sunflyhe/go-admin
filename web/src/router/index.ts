@@ -28,7 +28,14 @@ export const router = createRouter({
   routes: staticRoutes
 })
 
-let dynamicAdded = false
+let dynamicForUserID: number | null = null
+const dynamicRouteNames = new Set<string>()
+
+function resetDynamicRoutes() {
+  for (const name of dynamicRouteNames) router.removeRoute(name)
+  dynamicRouteNames.clear()
+  dynamicForUserID = null
+}
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
@@ -37,9 +44,10 @@ router.beforeEach(async (to) => {
   try {
     const me = await auth.fetchMe()
     if (!me) return { path: '/login' }
-    // 根据后端菜单动态注册路由(仅一次)
-    if (!dynamicAdded) {
-      dynamicAdded = true
+    // 根据当前账号的菜单注册路由。账号切换时必须移除前一账号的路由，
+    // 否则新用户会复用旧用户页面，或缺少自身应有页面。
+    if (dynamicForUserID !== me.user.id) {
+      resetDynamicRoutes()
       const addRoutes: RouteRecordRaw[] = []
       const walk = (nodes: NonNullable<typeof me.menus>) => {
         for (const n of nodes) {
@@ -57,7 +65,9 @@ router.beforeEach(async (to) => {
       walk(me.menus)
       for (const r of addRoutes) {
         router.addRoute('layout', r)
+        dynamicRouteNames.add(String(r.name))
       }
+      dynamicForUserID = me.user.id
       // 动态路由加入后重新导航一次
       return to.fullPath
     }

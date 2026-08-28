@@ -13,8 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/hesunfly/hesunfly-admin-go/server/app/middleware"
-	"github.com/hesunfly/hesunfly-admin-go/server/app/model"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/middleware"
+	"github.com/hesunfly/hesunfly-admin-go/server/internal/model"
 	pkgauth "github.com/hesunfly/hesunfly-admin-go/server/pkg/auth"
 	"github.com/hesunfly/hesunfly-admin-go/server/pkg/errs"
 )
@@ -176,8 +176,17 @@ func (s *AuthService) Refresh(c *gin.Context, req *RefreshReq) (*TokenPair, erro
 	}
 
 	now := time.Now()
-	if err := s.DB.Model(&rt).Updates(map[string]interface{}{"revoked": true, "revoked_at": now}).Error; err != nil {
-		return nil, errs.Internal("吊销旧令牌失败").WithCause(err)
+	// 必须带 revoked=false 条件更新：两个并发 refresh 都完成前置读取时，
+	// 仅允许其中一个请求消费旧令牌并签发新的 token pair。
+	res := s.DB.WithContext(c).Model(&model.SysRefreshToken{}).
+		Where("jti = ? AND revoked = ?", claims.JTI, false).
+		Updates(map[string]interface{}{"revoked": true, "revoked_at": now})
+	if res.Error != nil {
+		return nil, errs.Internal("吊销旧令牌失败").WithCause(res.Error)
+	}
+	if res.RowsAffected != 1 {
+		s.revokeAll(c, claims.UserID)
+		return nil, errs.Unauthorized("刷新凭据已失效,请重新登录")
 	}
 	access, refresh, err := s.JWT.IssuePair(user.ID, user.Username, user.TokenVersion)
 	if err != nil {
