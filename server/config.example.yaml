@@ -1,0 +1,34 @@
+# 监听地址
+server:
+  addr: ":8080"
+  # debug | release | test
+  mode: "release"
+  # 可选:由后端托管前端静态文件目录(如 ../web/dist);留空则前端单独部署
+  webDir: ""
+
+mysql:
+  # 必填。示例: user:password@tcp(127.0.0.1:3306)/go_admin?charset=utf8mb4&parseTime=True&loc=Local
+  dsn: ""
+  maxOpenConns: 50
+  maxIdleConns: 10
+  connMaxLifetimeSec: 3600
+  slowThresholdMs: 500
+
+jwt:
+  # 必填,生产环境至少 32 位随机字符串;可用环境变量 ADMIN_JWT_SECRET 覆盖
+  secret: ""
+  accessTTLMinutes: 30
+  refreshTTLHours: 168
+  issuer: "go-admin"
+
+log:
+  level: "info"
+
+upload:
+  dir: "./data/uploads"
+  maxSizeMB: 20
+  publicURL: "/files"
+
+audit:
+  # 操作/登录日志保留天数;0 表示永久保留
+  retentionDays: 90

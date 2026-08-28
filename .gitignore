@@ -1,0 +1,6 @@
+server/data/
+server/config.yaml
+web/node_modules/
+web/dist/
+*.log
+.DS_Store
