@@ -20,9 +20,14 @@
     <el-table-column prop="code" label="编码" width="130" />
     <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
     <el-table-column prop="userCount" label="成员数" width="90" align="right" />
-    <el-table-column label="状态" width="90">
+    <el-table-column label="状态" width="90" align="center">
       <template #default="{ row }">
-        <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
+        <el-switch
+          :model-value="row.status === 1"
+          :disabled="row.builtin || !auth.hasPerm('system:role:update')"
+          :before-change="() => confirmToggleStatus(row)"
+          @change="() => toggleStatus(row)"
+        />
       </template>
     </el-table-column>
     <el-table-column label="操作" width="190" fixed="right" align="center">
@@ -52,14 +57,16 @@
   </el-dialog>
 
   <el-dialog v-model="menusVisible" title="分配菜单" width="480px">
-    <el-tree
-      ref="menuTreeRef"
-      :data="menuTree"
-      show-checkbox
-      node-key="id"
-      :props="{ label: 'name', children: 'children' }"
-      default-expand-all
-    />
+    <div class="menu-tree-card">
+      <el-tree
+        ref="menuTreeRef"
+        :data="menuTree"
+        show-checkbox
+        node-key="id"
+        :props="{ label: 'name', children: 'children' }"
+        default-expand-all
+      />
+    </div>
     <template #footer>
       <el-button @click="menusVisible = false">取消</el-button>
       <el-button type="primary" @click="saveMenus">保存</el-button>
@@ -71,17 +78,32 @@
 import { nextTick, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { roleApi, menuApi, type RoleItem, type MenuNode } from '../../../api'
+import { useAuthStore } from '../../../stores/auth'
 import PaginatedTable from '../../../components/PaginatedTable.vue'
 import PageHeader from '../../../components/PageHeader.vue'
 import FilterActions from '../../../components/FilterActions.vue'
 import type { PaginatedTableHandle } from '../../../components/paginated-table'
 
 const tableRef = ref<PaginatedTableHandle | undefined>()
+const auth = useAuthStore()
 const filters = reactive({ name: '' })
 
 function resetFilters() {
   filters.name = ''
   tableRef.value?.search()
+}
+
+// before-change 拦截停用方向:停用角色会影响其下所有账号的权限,需二次确认;启用直接放行。
+// 内置超管角色的开关已按 builtin 禁用,后端同样拒绝停用。
+function confirmToggleStatus(row: RoleItem) {
+  if (row.status !== 1) return Promise.resolve(true)
+  return ElMessageBox.confirm(`确认停用角色「${row.name}」?停用后该角色下账号将失去对应权限。`, '提示', { type: 'warning' })
+}
+
+async function toggleStatus(row: RoleItem) {
+  await roleApi.update(row.id, { name: row.name, code: row.code, description: row.description, status: row.status === 1 ? 2 : 1 })
+  ElMessage.success('操作成功')
+  tableRef.value?.load()
 }
 
 const editVisible = ref(false)
@@ -141,5 +163,18 @@ async function saveMenus() {
 <style scoped>
 .builtin-tag {
   margin-left: 6px;
+}
+
+.menu-tree-card {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.menu-tree-card :deep(.el-tree) {
+  background: transparent;
 }
 </style>

@@ -82,6 +82,8 @@ export interface UserItem {
   nickname: string
   email: string
   phone: string
+  avatar: string
+  remark: string
   status: number
   lastLoginAt: string | null
   createdAt: string
@@ -94,6 +96,7 @@ export const userApi = {
   create: (data: Record<string, unknown>) => request.post<ApiBody<UserItem>>('/users', data),
   update: (id: number, data: Record<string, unknown>) => request.put<ApiBody<UserItem>>(`/users/${id}`, data),
   remove: (id: number) => request.delete<ApiBody<null>>(`/users/${id}`),
+  uploadAvatar: (id: number, formData: FormData) => request.put<ApiBody<{ avatar: string }>>(`/users/${id}/avatar`, formData),
   setStatus: (id: number, status: number) => request.put<ApiBody<null>>(`/users/${id}/status`, { status }),
   resetPassword: (id: number, password: string) => request.put<ApiBody<null>>(`/users/${id}/password`, { password }),
   assignRoles: (id: number, roleIds: number[]) => request.put<ApiBody<null>>(`/users/${id}/roles`, { roleIds }),
@@ -194,7 +197,7 @@ export interface FileRow {
   createdAt: string
 }
 
-// 取值由后端裁决(server/internal/service/file.go normalizeCategory):
+// 取值由后端裁决(api/internal/service/file.go normalizeCategory):
 // image 来自上传白名单的图片归类,video 按 mime 前缀判定(当前白名单不含音视频,该档恒空),
 // file 是前两者的补集。document/archive/other 是旧的上传归类,已不再对外。
 export type FileCategory = 'all' | 'image' | 'video' | 'file'

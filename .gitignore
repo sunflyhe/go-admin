@@ -1,5 +1,6 @@
-server/data/
-server/configs/config.yaml
+api/data/
+api/configs/config.yaml
+deploy/.env
 web/node_modules/
 web/dist/
 *.log

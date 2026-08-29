@@ -1,5 +1,8 @@
 <template>
-  <PageHeader :description="isEdit ? `编辑文章:${form.title || '加载中…'}` : '撰写新文章,保存草稿或直接发布。'">
+  <PageHeader
+    :title="isEdit ? '编辑文章' : '新建文章'"
+    :description="isEdit ? `编辑文章:${form.title || '加载中…'}` : '撰写新文章,保存草稿或直接发布。'"
+  >
     <template #extra>
       <el-button @click="goBack">返回列表</el-button>
     </template>
@@ -53,7 +56,7 @@ const loading = ref(false)
 const saving = ref(false)
 const form = reactive({ id: 0, categoryId: 0, title: '', summary: '', content: '', status: 1 })
 
-const isEdit = computed(() => form.id > 0)
+const isEdit = computed(() => Number(route.query.id) > 0 || form.id > 0)
 
 onMounted(async () => {
   // 分类下拉加载失败时降级为"未分类",不阻塞编辑(需 article:category:list)
@@ -125,6 +128,6 @@ function goBack() {
 
 <style scoped>
 .article-form {
-  max-width: 960px;
+  width: 100%;
 }
 </style>

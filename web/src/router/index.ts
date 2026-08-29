@@ -23,8 +23,11 @@ export const staticRoutes: RouteRecordRaw[] = [
       { path: 'article/article/edit', name: 'article-edit', component: () => import('../views/article/article/edit.vue'), meta: { title: '编辑文章' } }
     ]
   },
-  // 兜底:未注册路径(如直接输入目录 path)回仪表盘,避免整页空白
-  { path: '/:pathMatch(.*)*', redirect: '/dashboard' }
+  // 兜底:未注册路径。不能用 redirect(redirect 在守卫前执行,会把刷新时的原始 URL
+  // 替换成 /dashboard,导致动态路由永远无法按原路径恢复);改为命名空路由,
+  // 由 beforeEach 注册完动态路由后重试原路径,仍未匹配(真正的未知路径)再回仪表盘。
+  // 该记录不会被真正渲染:公开路径直接放行,其余路径守卫总会重定向。
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/Forbidden.vue') }
 ]
 
 export const router = createRouter({
@@ -72,9 +75,11 @@ router.beforeEach(async (to) => {
         dynamicRouteNames.add(String(r.name))
       }
       dynamicForUserID = me.user.id
-      // 动态路由加入后重新导航一次
+      // 动态路由加入后重新导航一次;to.fullPath 保留刷新时的原始地址
       return to.fullPath
     }
+    // 路由已按当前账号注册完毕仍未匹配 → 真正的未知路径,回仪表盘避免空白
+    if (to.name === 'not-found') return { path: '/dashboard' }
     return true
   } catch {
     return { path: '/login' }

@@ -1,13 +1,13 @@
-# 本地/交付示例:MySQL + 后端单二进制(内含前端静态文件需先构建并设置 server.webDir)
-# 本示例不使用 Redis——本项目无 Redis 强依赖。
+# 完整交付:MySQL + API + Nginx 托管的 Web 管理端。
+# 使用前执行: cp deploy/.env.example deploy/.env，并替换其中全部示例密钥。
 services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: change-me-root
-      MYSQL_DATABASE: go_admin
-      MYSQL_USER: goadmin
-      MYSQL_PASSWORD: change-me-app
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 deploy/.env 设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-go_admin}
+      MYSQL_USER: ${MYSQL_USER:-goadmin}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 deploy/.env 设置 MYSQL_PASSWORD}
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
@@ -17,23 +17,37 @@ services:
       timeout: 3s
       retries: 20
 
-  server:
+  api:
     build:
       context: ..
-      dockerfile: deploy/Dockerfile
+      dockerfile: deploy/api/Dockerfile
     depends_on:
       mysql:
         condition: service_healthy
     environment:
-      ADMIN_MYSQL_DSN: "goadmin:change-me-app@tcp(mysql:3306)/go_admin?charset=utf8mb4&parseTime=True&loc=Local"
-      # 生产环境务必替换为至少 32 位随机串
-      ADMIN_JWT_SECRET: "please-replace-with-random-32-chars-secret"
+      ADMIN_MYSQL_DSN: "${MYSQL_USER:-goadmin}:${MYSQL_PASSWORD}@tcp(mysql:3306)/${MYSQL_DATABASE:-go_admin}?charset=utf8mb4&parseTime=True&loc=Local"
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?请在 deploy/.env 设置 ADMIN_JWT_SECRET}
       ADMIN_SERVER_ADDR: ":8080"
+      ADMIN_SERVER_MODE: "release"
       ADMIN_UPLOAD_DIR: "/data/uploads"
     volumes:
       - upload_data:/data/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/readyz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${WEB_PORT:-8080}:80"
 
 volumes:
   mysql_data:

@@ -10,8 +10,8 @@
 后端采用 Go 社区通行的分层布局(golang-standards/project-layout 风格),按技术角色横切分层:
 
 ```text
-server/                  Go 后端(单二进制)
-├── cmd/server/main.go   启动入口
+api/                     Go 后端 API(单二进制)
+├── cmd/api/main.go      启动入口
 ├── internal/            私有代码(编译器禁止外部模块导入)
 │   ├── handler/         HTTP 处理器(参数绑定+响应)
 │   ├── service/         不依赖 Gin 的业务逻辑(业务 Input/Output、Actor 等)
@@ -25,7 +25,6 @@ server/                  Go 后端(单二进制)
 └── configs/             配置示例(configs/config.example.yaml)
 web/       Vue3 管理端
 deploy/    Dockerfile 与 docker-compose 示例
-docs/      OpenAPI 文档
 ```
 
 约定:HTTP DTO 放在 `internal/handler/*_dto.go`，Handler 显式转换后以 `context.Context` 调用不依赖 Gin 的 Service；新增业务模块时,handler/service/各自加文件、model 进 model 包,路由在 internal/router 注册;`internal/` 与 `pkg/` 的分界是"是否可被其他项目复用"。
@@ -41,7 +40,7 @@ mysql -uroot -p -e "CREATE DATABASE go_admin DEFAULT CHARACTER SET utf8mb4 COLLA
 ### 2. 配置
 
 ```bash
-cd server
+cd api
 cp configs/config.example.yaml configs/config.yaml
 # 编辑 configs/config.yaml:填写 mysql.dsn 与 jwt.secret(至少 16 位,建议 32 位随机串)
 ```
@@ -51,11 +50,11 @@ cp configs/config.example.yaml configs/config.yaml
 ### 3. 启动(空库自动迁移 + 种子)
 
 ```bash
-cd server
-go run ./cmd/server -config configs/config.yaml
+cd api
+go run ./cmd/api -config configs/config.yaml
 ```
 
-服务启动时会自动执行未应用的迁移与幂等种子数据;也可用 `server/migrations/` 下的 SQL 手工执行。
+服务启动时会自动执行未应用的迁移与幂等种子数据;也可用 `api/migrations/` 下的 SQL 手工执行。
 
 ### 4. 前端
 
@@ -66,7 +65,17 @@ npm run dev        # 开发模式,代理到 localhost:8080
 npm run build      # 生产构建,产物在 web/dist
 ```
 
-生产部署时把 `server/configs/config.yaml` 的 `server.webDir` 指向 `web/dist` 即可由后端单二进制托管前端;或用 Nginx 单独托管前端静态文件。
+开发时可由 API 托管 `web/dist`；生产交付建议使用下方的 Docker Compose，由 Nginx 单独托管前端静态文件并反代 API。
+
+## Docker Compose 部署
+
+```bash
+cp deploy/.env.example deploy/.env
+# 编辑 deploy/.env，替换 MySQL 密码和至少 32 位的 JWT 密钥
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+```
+
+部署完成后访问 `http://localhost:8080`。Web 容器负责 SPA 路由与静态资源，`/api`、`/files` 由 Nginx 转发到 API；MySQL 数据与上传文件分别使用命名卷持久化。
 
 ### 5. 默认账号
 
@@ -91,7 +100,7 @@ npm run build      # 生产构建,产物在 web/dist
 
 ## 数据库变更
 
-- 一律使用 `server/migrations/` 下顺序命名的 SQL migration(`NNNNNN_name.up.sql` / `.down.sql`),内嵌进二进制,启动时自动执行未应用的 up。
+- 一律使用 `api/migrations/` 下顺序命名的 SQL migration(`NNNNNN_name.up.sql` / `.down.sql`),内嵌进二进制,启动时自动执行未应用的 up。
 - 禁止用 GORM AutoMigrate 管理生产库结构。
 - 种子数据使用固定主键 + `INSERT IGNORE`,幂等且不覆盖客户对角色/菜单的修改。
 - down 迁移仅供人工在明确风险下执行。
@@ -99,22 +108,12 @@ npm run build      # 生产构建,产物在 web/dist
 ## 质量门槛
 
 ```bash
-cd server && go test ./... && go vet ./...
+cd api && go test ./... && go vet ./...
 cd web && npm run lint && npm run typecheck && npm run build
 ```
 
 前端工程包含 ESLint(Flat Config)+ Prettier;`npm run typecheck` 同时覆盖 src 与 vite.config.ts。
 
-## API 文档
-
-见 [docs/openapi.yaml](docs/openapi.yaml)。统一响应格式:
-
-```json
-{"code": 0, "message": "success", "data": {}}
-```
-
-分页响应 `data`:`{"list":[],"total":0,"page":1,"pageSize":20}`。
-
 ## 明确不做(v1 边界)
 
-多租户、数据权限(仅预留)、插件/低代码、工作流、国际化、微服务/消息队列、Redis 强依赖、WebSocket、任务管理后台、MinIO/OSS、Excel 导入、安装向导、报表引擎。启用条件见执行说明文档第 9 节。
+多租户、数据权限(仅预留)、插件/低代码、工作流、国际化、微服务/消息队列、Redis 强依赖、WebSocket、任务管理后台、MinIO/OSS、Excel 导入、安装向导、报表引擎。

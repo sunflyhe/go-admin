@@ -13,8 +13,8 @@
 后端采用 Go 社区常见的 project-layout：
 
 ```text
-server/
-├── cmd/server/          # 启动入口与依赖装配起点
+api/
+├── cmd/api/             # 启动入口与依赖装配起点
 ├── internal/
 │   ├── handler/         # 唯一直接依赖 Gin 的 HTTP 层
 │   ├── service/         # 不依赖 Gin 的业务逻辑
@@ -83,7 +83,7 @@ server/
 3. 修改后：至少执行并如实报告：
 
    ```bash
-   cd server && go test ./... && go vet ./... && git diff --check
+   cd api && go test ./... && go vet ./... && git diff --check
    cd web && npm run lint && npm run typecheck && npm run build
    ```
 

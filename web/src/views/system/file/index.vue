@@ -740,8 +740,30 @@ onMounted(() => {
 .move-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  align-items: stretch;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.move-list :deep(.el-radio) {
+  margin-right: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: #ffffff;
+  transition: all 0.2s;
+}
+
+.move-list :deep(.el-radio:hover) {
+  background-color: #f8fafc;
+  border-color: var(--el-border-color);
+}
+
+.move-list :deep(.el-radio.is-checked) {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-9);
 }
 
 .move-list__hint {

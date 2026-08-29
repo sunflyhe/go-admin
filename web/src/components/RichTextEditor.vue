@@ -76,8 +76,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .rich-editor {
+  width: 100%;
   border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  border-radius: 8px;
+  overflow: hidden;
   z-index: 100; /* 压住弹窗内其它元素,保证工具条下拉可见 */
 }
 

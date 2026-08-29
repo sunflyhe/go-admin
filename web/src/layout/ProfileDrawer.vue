@@ -200,18 +200,21 @@ async function savePassword() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   overflow: hidden;
-  border: 1px dashed var(--el-border-color);
+  border: 2px dashed #cbd5e1;
   border-radius: 50%;
-  background: var(--el-fill-color-lighter);
+  background: #f8fafc;
   cursor: pointer;
-  transition: border-color 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .avatar-circle:hover {
   border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  transform: scale(1.02);
 }
 
 .avatar-circle.is-loading {
