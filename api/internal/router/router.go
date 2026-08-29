@@ -32,6 +32,12 @@ type Deps struct {
 func New(d *Deps) *gin.Engine {
 	gin.SetMode(d.Cfg.Server.Mode)
 	r := gin.New()
+	// 默认不信任任何转发头。部署在反向代理后时，必须显式配置可信代理 IP/CIDR，
+	// 否则客户端可伪造 X-Forwarded-For，污染审计、登录日志和 IP 限流判断。
+	if err := r.SetTrustedProxies(d.Cfg.Server.TrustedProxies); err != nil {
+		d.Logger.Error("配置可信代理失败", "error", err)
+		return r
+	}
 	r.Use(middleware.RequestID(), middleware.AccessLog(d.Logger), middleware.Recovery(d.Logger))
 	r.MaxMultipartMemory = 8 << 20
 

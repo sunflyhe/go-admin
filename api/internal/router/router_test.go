@@ -23,6 +23,10 @@ import (
 )
 
 func newRouterEnv(t *testing.T) *gin.Engine {
+	return newRouterEnvWithTrustedProxies(t, nil)
+}
+
+func newRouterEnvWithTrustedProxies(t *testing.T, trustedProxies []string) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db := testutil.NewTestDB(t)
@@ -45,6 +49,7 @@ func newRouterEnv(t *testing.T) *gin.Engine {
 
 	cfg := &config.Config{}
 	cfg.Server.Mode = "test"
+	cfg.Server.TrustedProxies = trustedProxies
 	cfg.MySQL.DSN = "test"
 	cfg.JWT.Secret = "test-secret-1234567890"
 	cfg.Upload.Dir = t.TempDir()
@@ -203,6 +208,34 @@ func TestHealthz(t *testing.T) {
 	w := doReq(r, "GET", "/healthz", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("healthz 应返回 200: %d", w.Code)
+	}
+}
+
+func TestTrustedProxyClientIP(t *testing.T) {
+	r := newRouterEnvWithTrustedProxies(t, []string{"192.0.2.0/24"})
+	r.GET("/test-client-ip", func(c *gin.Context) { c.String(http.StatusOK, c.ClientIP()) })
+
+	req := httptest.NewRequest(http.MethodGet, "/test-client-ip", nil)
+	req.RemoteAddr = "192.0.2.10:12345"
+	req.Header.Set("X-Forwarded-For", "203.0.113.24")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if got := w.Body.String(); got != "203.0.113.24" {
+		t.Fatalf("应使用可信代理提供的客户端 IP,实际: %q", got)
+	}
+}
+
+func TestUntrustedProxyCannotSetClientIP(t *testing.T) {
+	r := newRouterEnv(t)
+	r.GET("/test-client-ip", func(c *gin.Context) { c.String(http.StatusOK, c.ClientIP()) })
+
+	req := httptest.NewRequest(http.MethodGet, "/test-client-ip", nil)
+	req.RemoteAddr = "192.0.2.10:12345"
+	req.Header.Set("X-Forwarded-For", "203.0.113.24")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if got := w.Body.String(); got != "192.0.2.10" {
+		t.Fatalf("非可信代理不能覆盖客户端 IP,实际: %q", got)
 	}
 }
 

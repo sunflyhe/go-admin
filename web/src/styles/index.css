@@ -1,4 +1,5 @@
 /* 全局设计变量与 Element Plus 覆盖:配色取自 aiOutfitBuddy/admin(MineAdmin 风格)的浅色主题 */
+@import './layout.css';
 
 :root {
   /* 主色 #2563eb 的 EP 色阶(与 Element Plus mix-white 算法一致) */
@@ -40,7 +41,8 @@ body,
 body {
   background: var(--app-page-bg);
   color: var(--el-text-color-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -50,7 +52,9 @@ body {
 .el-card {
   border-radius: 12px;
   border-color: var(--el-border-color-lighter);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.04),
+    0 1px 2px -1px rgba(0, 0, 0, 0.02);
 }
 
 .el-card__body {
@@ -69,7 +73,9 @@ body {
   border-radius: 16px !important;
   overflow: hidden;
   border: 1px solid rgba(226, 232, 240, 0.85);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.02) !important;
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.02) !important;
   padding: 0 !important;
 }
 
@@ -261,7 +267,9 @@ body {
 
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused {
-  box-shadow: 0 0 0 1px #2563eb inset, 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  box-shadow:
+    0 0 0 1px #2563eb inset,
+    0 0 0 3px rgba(37, 99, 235, 0.12) !important;
 }
 
 .el-input.is-disabled .el-input__wrapper {
@@ -292,7 +300,9 @@ body {
 }
 
 .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px #2563eb inset, 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  box-shadow:
+    0 0 0 1px #2563eb inset,
+    0 0 0 3px rgba(37, 99, 235, 0.12) !important;
 }
 
 .el-input__count {
@@ -376,13 +386,17 @@ body {
 }
 
 /* 默认/次要按钮 */
-.el-button:not(.is-link):not(.is-text):not(.el-button--primary):not(.el-button--danger):not(.el-button--success):not(.el-button--warning) {
+.el-button:not(.is-link):not(.is-text):not(.el-button--primary):not(.el-button--danger):not(.el-button--success):not(
+    .el-button--warning
+  ) {
   border-color: #e2e8f0;
   color: #475569;
   background-color: #ffffff;
 }
 
-.el-button:not(.is-link):not(.is-text):not(.el-button--primary):not(.el-button--danger):not(.el-button--success):not(.el-button--warning):not(.is-disabled):hover {
+.el-button:not(.is-link):not(.is-text):not(.el-button--primary):not(.el-button--danger):not(.el-button--success):not(
+    .el-button--warning
+  ):not(.is-disabled):hover {
   border-color: #cbd5e1;
   color: #0f172a;
   background-color: #f8fafc;
@@ -394,14 +408,18 @@ body {
   color: #ffffff !important;
   background-color: #2563eb;
   border-color: #2563eb;
-  box-shadow: 0 1px 3px 0 rgba(37, 99, 235, 0.25), 0 1px 2px -1px rgba(37, 99, 235, 0.15);
+  box-shadow:
+    0 1px 3px 0 rgba(37, 99, 235, 0.25),
+    0 1px 2px -1px rgba(37, 99, 235, 0.15);
 }
 
 .el-button--primary:not(.is-link):not(.is-text):not(.is-plain):not(.is-disabled):hover {
   background-color: #1d4ed8;
   border-color: #1d4ed8;
   color: #ffffff !important;
-  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3), 0 2px 4px -2px rgba(37, 99, 235, 0.2);
+  box-shadow:
+    0 4px 6px -1px rgba(37, 99, 235, 0.3),
+    0 2px 4px -2px rgba(37, 99, 235, 0.2);
   transform: translateY(-0.5px);
 }
 
@@ -463,7 +481,9 @@ body {
 .el-radio-group:has(.el-radio-button) .el-radio-button.is-active .el-radio-button__inner {
   background: #ffffff !important;
   color: #2563eb !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.06) !important;
 }
 
 /* 开关 (Switch) 微调 */
@@ -498,7 +518,9 @@ body {
   padding: 0 10px;
   font-size: 13px;
   color: #334155;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .el-select-dropdown__item.is-hovering {
@@ -549,101 +571,4 @@ body {
 .el-tag {
   border: none;
   font-weight: 400;
-}
-
-/* ---------- 菜单(侧边栏 + 折叠后的弹出子菜单,弹层挂在 body 上需全局覆盖) ---------- */
-
-.admin-menu {
-  background: transparent;
-  border-right: none;
-}
-
-.admin-menu:not(.el-menu--collapse) {
-  width: 100%;
-}
-
-.admin-menu .el-menu-item,
-.admin-menu .el-sub-menu__title {
-  height: 44px;
-  line-height: 44px;
-  margin: 2px 10px;
-  border-radius: 8px;
-  color: #4b5563;
-  transition: color 0.2s, background-color 0.2s;
-}
-
-.admin-menu .el-menu-item:hover,
-.admin-menu .el-sub-menu__title:hover {
-  background: rgb(37 99 235 / 6%);
-  color: var(--el-color-primary);
-}
-
-.admin-menu .el-menu-item.is-active {
-  background: rgb(37 99 235 / 8%);
-  color: var(--el-color-primary);
-  font-weight: 500;
-}
-
-.admin-menu .el-menu-item .el-icon,
-.admin-menu .el-sub-menu__title .el-icon {
-  margin-right: 8px;
-}
-
-/* 折叠态:去掉外边距与 EP 内边距,图标与 logo 共用一条竖直中线(64px 中点) */
-.admin-menu.el-menu--collapse .el-menu-item,
-.admin-menu.el-menu--collapse .el-sub-menu__title {
-  margin: 2px 6px;
-  padding: 0;
-  justify-content: center;
-}
-
-.admin-menu.el-menu--collapse .el-menu-item .el-icon,
-.admin-menu.el-menu--collapse .el-sub-menu__title .el-icon {
-  margin-right: 0;
-}
-
-.el-popper.is-light .el-menu--popup {
-  background: #fff;
-  border-radius: 10px;
-  padding: 6px;
-  min-width: 180px;
-}
-
-.el-popper.is-light .el-menu--popup .el-menu-item {
-  height: 40px;
-  line-height: 40px;
-  margin: 2px 0;
-  border-radius: 6px;
-  color: #4b5563;
-}
-
-.el-popper.is-light .el-menu--popup .el-menu-item:hover {
-  background: rgb(37 99 235 / 6%);
-  color: var(--el-color-primary);
-}
-
-.el-popper.is-light .el-menu--popup .el-menu-item.is-active {
-  background: rgb(37 99 235 / 8%);
-  color: var(--el-color-primary);
-  font-weight: 500;
-}
-
-/* ---------- 细滚动条 ---------- */
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  border-radius: 6px;
-  background: #d3d6dc;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #b8bcc4;
 }

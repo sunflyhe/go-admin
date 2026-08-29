@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -12,7 +13,8 @@ import (
 )
 
 type Server struct {
-	Addr string `yaml:"addr"`
+	Addr           string   `yaml:"addr"`
+	TrustedProxies []string `yaml:"trustedProxies"`
 	// Gin 运行模式:debug(开发,带调试输出)/ release(生产,静默)/ test(测试,静默)。
 	// 仅影响 Gin 自身日志,不影响业务逻辑;生产环境必须用 release。
 	Mode   string `yaml:"mode"`   // debug | release | test
@@ -94,6 +96,9 @@ func applyEnv(cfg *Config) {
 	str("ADMIN_SERVER_ADDR", &cfg.Server.Addr)
 	str("ADMIN_SERVER_MODE", &cfg.Server.Mode)
 	str("ADMIN_SERVER_WEB_DIR", &cfg.Server.WebDir)
+	if v, ok := os.LookupEnv("ADMIN_SERVER_TRUSTED_PROXIES"); ok {
+		cfg.Server.TrustedProxies = splitCSV(v)
+	}
 	str("ADMIN_MYSQL_DSN", &cfg.MySQL.DSN)
 	intVal("ADMIN_MYSQL_MAX_OPEN_CONNS", &cfg.MySQL.MaxOpenConns)
 	str("ADMIN_JWT_SECRET", &cfg.JWT.Secret)
@@ -103,6 +108,16 @@ func applyEnv(cfg *Config) {
 	str("ADMIN_UPLOAD_DIR", &cfg.Upload.Dir)
 	intVal("ADMIN_UPLOAD_MAX_SIZE_MB", &cfg.Upload.MaxSizeMB)
 	intVal("ADMIN_AUDIT_RETENTION_DAYS", &cfg.Audit.RetentionDays)
+}
+
+func splitCSV(value string) []string {
+	var values []string
+	for _, item := range strings.Split(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			values = append(values, item)
+		}
+	}
+	return values
 }
 
 func setDefaults(cfg *Config) {
@@ -169,6 +184,13 @@ func validate(cfg *Config) error {
 	case "debug", "release", "test":
 	default:
 		return fmt.Errorf("server.mode 仅支持 debug/release/test,当前: %q", cfg.Server.Mode)
+	}
+	for _, proxy := range cfg.Server.TrustedProxies {
+		if net.ParseIP(proxy) == nil {
+			if _, _, err := net.ParseCIDR(proxy); err != nil {
+				return fmt.Errorf("server.trustedProxies 包含无效 IP 或 CIDR: %q", proxy)
+			}
+		}
 	}
 	return nil
 }

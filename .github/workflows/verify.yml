@@ -1,0 +1,56 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+          cache-dependency-path: api/go.sum
+      - run: go test ./...
+      - run: go vet ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the complete stack
+        run: docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml up -d --build --wait
+      - name: Verify migration and reverse proxy
+        run: |
+          docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml exec -T api wget -q -O - http://localhost:8080/readyz
+          curl --fail --retry 10 --retry-connrefused http://localhost:18080/
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST http://localhost:18080/api/v1/auth/login)" = 400
+      - name: Print service logs on failure
+        if: failure()
+        run: docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml logs --no-color
+      - name: Shut down stack
+        if: always()
+        run: docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml down -v

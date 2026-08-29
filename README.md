@@ -60,12 +60,14 @@ go run ./cmd/api -config configs/config.yaml
 
 ```bash
 cd web
+nvm use                 # 使用仓库锁定的 Node 22.22.0
 npm install
 npm run dev        # 开发模式,代理到 localhost:8080
 npm run build      # 生产构建,产物在 web/dist
 ```
 
 开发时可由 API 托管 `web/dist`；生产交付建议使用下方的 Docker Compose，由 Nginx 单独托管前端静态文件并反代 API。
+前端统一使用 Node 22.22.0（见 `web/.nvmrc`）；CI 与 Web 构建镜像使用相同版本。`npm run build` 会检查入口 JS、最大 CSS 与富文本懒加载包的体积预算，超标将失败。
 
 ## Docker Compose 部署
 
@@ -76,6 +78,8 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
 
 部署完成后访问 `http://localhost:8080`。Web 容器负责 SPA 路由与静态资源，`/api`、`/files` 由 Nginx 转发到 API；MySQL 数据与上传文件分别使用命名卷持久化。
+
+API 默认不信任 `X-Forwarded-For` 等转发头；此 Compose 将 Web 容器固定为内部地址 `172.30.0.10`，并仅信任该地址。若改用自己的反向代理部署，请在 API 配置的 `server.trustedProxies`（或 `ADMIN_SERVER_TRUSTED_PROXIES`，逗号分隔）中填写实际代理 IP/CIDR，切勿配置为全网段。
 
 ### 5. 默认账号
 

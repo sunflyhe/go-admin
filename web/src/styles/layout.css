@@ -1,0 +1,79 @@
+/* 侧边栏菜单与全局滚动条；与 Element Plus 控件覆盖分离，便于调整应用框架布局。 */
+.admin-menu {
+  background: transparent;
+  border-right: none;
+}
+.admin-menu:not(.el-menu--collapse) {
+  width: 100%;
+}
+.admin-menu .el-menu-item,
+.admin-menu .el-sub-menu__title {
+  height: 44px;
+  line-height: 44px;
+  margin: 2px 10px;
+  border-radius: 8px;
+  color: #4b5563;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
+}
+.admin-menu .el-menu-item:hover,
+.admin-menu .el-sub-menu__title:hover {
+  background: rgb(37 99 235 / 6%);
+  color: var(--el-color-primary);
+}
+.admin-menu .el-menu-item.is-active {
+  background: rgb(37 99 235 / 8%);
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+.admin-menu .el-menu-item .el-icon,
+.admin-menu .el-sub-menu__title .el-icon {
+  margin-right: 8px;
+}
+.admin-menu.el-menu--collapse .el-menu-item,
+.admin-menu.el-menu--collapse .el-sub-menu__title {
+  margin: 2px 6px;
+  padding: 0;
+  justify-content: center;
+}
+.admin-menu.el-menu--collapse .el-menu-item .el-icon,
+.admin-menu.el-menu--collapse .el-sub-menu__title .el-icon {
+  margin-right: 0;
+}
+.el-popper.is-light .el-menu--popup {
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 180px;
+}
+.el-popper.is-light .el-menu--popup .el-menu-item {
+  height: 40px;
+  line-height: 40px;
+  margin: 2px 0;
+  border-radius: 6px;
+  color: #4b5563;
+}
+.el-popper.is-light .el-menu--popup .el-menu-item:hover {
+  background: rgb(37 99 235 / 6%);
+  color: var(--el-color-primary);
+}
+.el-popper.is-light .el-menu--popup .el-menu-item.is-active {
+  background: rgb(37 99 235 / 8%);
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: #d3d6dc;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b8bcc4;
+}
