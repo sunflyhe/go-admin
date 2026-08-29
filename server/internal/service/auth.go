@@ -19,19 +19,25 @@ import (
 )
 
 // AuthService 登录认证域服务。
+// 两级失败限流(均为进程内存实现,与 Limiter 同一前提:单实例足够):
+//   - Limiter 按 用户名+IP:防单点暴力破解;
+//   - AccountLimiter 仅按用户名:防换 IP 分布式爆破。只对真实存在的账号计数,
+//     避免任意用户名可被第三方恶意锁定(对不存在账号的探测由 IP 维度拦截)。
 type AuthService struct {
-	DB      *gorm.DB
-	JWT     *pkgauth.Manager
-	Limiter *Limiter
-	Logger  *slog.Logger
+	DB             *gorm.DB
+	JWT            *pkgauth.Manager
+	Limiter        *Limiter
+	AccountLimiter *Limiter
+	Logger         *slog.Logger
 }
 
 func NewAuthService(db *gorm.DB, jwt *pkgauth.Manager, logger *slog.Logger) *AuthService {
 	return &AuthService{
-		DB:      db,
-		JWT:     jwt,
-		Limiter: NewLimiter(5, 15*time.Minute, 15*time.Minute),
-		Logger:  logger,
+		DB:             db,
+		JWT:            jwt,
+		Limiter:        NewLimiter(5, 15*time.Minute, 15*time.Minute),
+		AccountLimiter: NewLimiter(10, 15*time.Minute, 15*time.Minute),
+		Logger:         logger,
 	}
 }
 
@@ -44,14 +50,15 @@ type TokenPair struct {
 }
 
 type UserProfile struct {
-	ID       int64    `json:"id"`
-	Username string   `json:"username"`
-	Nickname string   `json:"nickname"`
-	Email    string   `json:"email"`
-	Phone    string   `json:"phone"`
-	Avatar   string   `json:"avatar"`
-	Roles    []string `json:"roles"`
-	Super    bool     `json:"super"`
+	ID        int64    `json:"id"`
+	Username  string   `json:"username"`
+	Nickname  string   `json:"nickname"`
+	Email     string   `json:"email"`
+	Phone     string   `json:"phone"`
+	Avatar    string   `json:"avatar"`
+	Signature string   `json:"signature"`
+	Roles     []string `json:"roles"`
+	Super     bool     `json:"super"`
 }
 
 type LoginResp struct {
@@ -75,6 +82,10 @@ func (s *AuthService) Login(ctx context.Context, username, password string, meta
 		s.recordLoginLog(ctx, username, false, "尝试次数过多被限流", meta)
 		return nil, errs.TooManyRequests("登录失败次数过多,请稍后再试")
 	}
+	if locked, _ := s.AccountLimiter.Locked(username); locked {
+		s.recordLoginLog(ctx, username, false, "账号连续失败被锁定", meta)
+		return nil, errs.TooManyRequests("该账号登录失败次数过多,已被临时锁定,请稍后再试")
+	}
 
 	var user model.SysUser
 	err := s.DB.WithContext(ctx).Where("username = ?", username).First(&user).Error
@@ -85,6 +96,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string, meta
 	}
 	if !pkgauth.VerifyPassword(user.Password, password) {
 		s.Limiter.Fail(key)
+		s.AccountLimiter.Fail(username)
 		s.recordLoginLog(ctx, username, false, "账号或密码错误", meta)
 		return nil, errs.Unauthorized("账号或密码错误")
 	}
@@ -106,6 +118,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string, meta
 		s.Logger.Warn("更新最后登录时间失败", "error", err)
 	}
 	s.Limiter.Reset(key)
+	s.AccountLimiter.Reset(username)
 	s.recordLoginLog(ctx, username, true, "", meta)
 
 	return &LoginResp{
@@ -203,6 +216,35 @@ func (s *AuthService) Logout(ctx context.Context, actor Actor) error {
 	return nil
 }
 
+// ChangePassword 自助改密:必须验证原密码,以此证明"是本人"。
+// 与管理员重置(UserService.ResetPassword)的差别只在于这道证明;失效已签发凭据的语义一致 ——
+// token_version 自增让 access token 立刻不可用,revokeAll 让 refresh token 无法再续期。
+func (s *AuthService) ChangePassword(ctx context.Context, actor Actor, oldPassword, newPassword string) error {
+	var user model.SysUser
+	if err := s.DB.WithContext(ctx).First(&user, actor.ID).Error; err != nil {
+		return errs.Unauthorized("账号不存在或已删除")
+	}
+	if !pkgauth.VerifyPassword(user.Password, oldPassword) {
+		return errs.InvalidParam("原密码不正确")
+	}
+	if oldPassword == newPassword {
+		return errs.InvalidParam("新密码不能与原密码相同")
+	}
+	if err := ValidatePassword(newPassword); err != nil {
+		return err
+	}
+	hash, err := pkgauth.HashPassword(newPassword)
+	if err != nil {
+		return errs.Internal("密码加密失败").WithCause(err)
+	}
+	if err := s.DB.WithContext(ctx).Model(&model.SysUser{ID: user.ID}).
+		Updates(map[string]interface{}{"password": hash, "token_version": gorm.Expr("token_version + 1")}).Error; err != nil {
+		return errs.Internal("修改密码失败").WithCause(err)
+	}
+	s.revokeAll(ctx, user.ID)
+	return nil
+}
+
 func (s *AuthService) revokeAll(ctx context.Context, userID int64) {
 	now := time.Now()
 	if err := s.DB.WithContext(ctx).Model(&model.SysRefreshToken{}).
@@ -265,14 +307,15 @@ func (s *AuthService) profile(ctx context.Context, user *model.SysUser) UserProf
 		roleCodes = []string{}
 	}
 	return UserProfile{
-		ID:       user.ID,
-		Username: user.Username,
-		Nickname: user.Nickname,
-		Email:    user.Email,
-		Phone:    user.Phone,
-		Avatar:   user.Avatar,
-		Roles:    roleCodes,
-		Super:    user.IsSuperAdmin(),
+		ID:        user.ID,
+		Username:  user.Username,
+		Nickname:  user.Nickname,
+		Email:     user.Email,
+		Phone:     user.Phone,
+		Avatar:    user.Avatar,
+		Signature: user.Signature,
+		Roles:     roleCodes,
+		Super:     user.IsSuperAdmin(),
 	}
 }
 

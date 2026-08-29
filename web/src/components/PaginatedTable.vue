@@ -1,20 +1,24 @@
 <template>
-  <el-card>
-    <div v-if="$slots.toolbar" class="toolbar">
-      <slot name="toolbar" />
-    </div>
-    <el-table v-loading="loading" :data="rows" border stripe>
-      <slot />
-    </el-table>
-    <el-pagination
-      v-model:current-page="page"
-      v-model:page-size="pageSize"
-      :total="total"
-      layout="total, prev, pager, next"
-      class="pager"
-      @current-change="load"
-    />
-  </el-card>
+  <div>
+    <el-card v-if="$slots.toolbar" class="search-card">
+      <div class="toolbar">
+        <slot name="toolbar" />
+      </div>
+    </el-card>
+    <el-card>
+      <el-table v-loading="loading" :data="rows">
+        <slot />
+      </el-table>
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        layout="total, prev, pager, next"
+        class="pager"
+        @current-change="load"
+      />
+    </el-card>
+  </div>
 </template>
 
 <script setup lang="ts" generic="T">
@@ -45,19 +49,30 @@ async function load() {
   }
 }
 
-defineExpose({ load })
+// search 用于筛选条件变化后的查询:回到第一页,避免停留在旧页码上看到错位数据。
+async function search() {
+  page.value = 1
+  await load()
+}
+
+defineExpose({ load, search, page, pageSize })
 
 onMounted(load)
 </script>
 
 <style scoped>
+.search-card {
+  margin-bottom: 10px;
+}
+
 .toolbar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
+
 .pager {
-  margin-top: 12px;
+  margin-top: 14px;
   justify-content: flex-end;
 }
 </style>

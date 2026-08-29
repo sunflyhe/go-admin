@@ -1,0 +1,201 @@
+/* 全局设计变量与 Element Plus 覆盖:配色取自 aiOutfitBuddy/admin(MineAdmin 风格)的浅色主题 */
+
+:root {
+  /* 主色 #2563eb 的 EP 色阶(与 Element Plus mix-white 算法一致) */
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-1: #3b73ed;
+  --el-color-primary-light-2: #5182ef;
+  --el-color-primary-light-3: #6692f1;
+  --el-color-primary-light-4: #7ca1f3;
+  --el-color-primary-light-5: #93b1f5;
+  --el-color-primary-light-6: #aac1f7;
+  --el-color-primary-light-7: #bed0f9;
+  --el-color-primary-light-8: #d4e0fb;
+  --el-color-primary-light-9: #e9f0fd;
+  --el-color-primary-dark-2: #1e4fbc;
+
+  /* 中性色:冷灰体系 */
+  --el-text-color-primary: #1d2129;
+  --el-text-color-regular: #4e5969;
+  --el-text-color-secondary: #86909c;
+  --el-border-color: #e5e6eb;
+  --el-border-color-light: #e8e9ec;
+  --el-border-color-lighter: #f0f1f4;
+  --el-fill-color-light: #f7f8fa;
+  --el-bg-color-page: #f3f4f8;
+
+  --el-border-radius-base: 6px;
+  --app-page-bg: #f3f4f8;
+  --app-aside-bg: #f9fafc;
+  --app-border: #e8e9ec;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--app-page-bg);
+  color: var(--el-text-color-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- 卡片 / 弹窗 ---------- */
+
+.el-card {
+  border-radius: 10px;
+  border-color: var(--el-border-color-lighter);
+  box-shadow: none;
+}
+
+.el-card__body {
+  padding: 16px;
+}
+
+.el-dialog {
+  border-radius: 12px;
+}
+
+.el-dialog__title {
+  font-weight: 600;
+}
+
+/* ---------- 表格:去满边框,浅灰表头 ---------- */
+
+.el-table {
+  --el-table-border-color: var(--el-border-color-lighter);
+  --el-table-header-bg-color: #f7f8fa;
+  --el-table-header-text-color: #4e5969;
+  border-radius: 10px;
+}
+
+.el-table th.el-table__cell {
+  font-weight: 500;
+}
+
+/* 表格内 link 按钮去内边距;操作列居中后按钮组与下拉触发器垂直居中 */
+.el-table .cell .el-button.is-link {
+  padding: 0;
+}
+
+.el-table .cell .el-dropdown {
+  vertical-align: middle;
+}
+
+/* link 按钮去内边距后,相邻按钮/下拉的视觉间隙放宽到 16px */
+.el-table .cell .el-button.is-link + .el-button.is-link,
+.el-table .cell .el-button.is-link + .el-dropdown {
+  margin-left: 16px;
+}
+
+.el-table .el-table__cell {
+  padding: 11px 0;
+}
+
+/* 标签:无边框更轻 */
+.el-tag {
+  border: none;
+  font-weight: 400;
+}
+
+/* ---------- 菜单(侧边栏 + 折叠后的弹出子菜单,弹层挂在 body 上需全局覆盖) ---------- */
+
+.admin-menu {
+  background: transparent;
+  border-right: none;
+}
+
+.admin-menu:not(.el-menu--collapse) {
+  width: 100%;
+}
+
+.admin-menu .el-menu-item,
+.admin-menu .el-sub-menu__title {
+  height: 44px;
+  line-height: 44px;
+  margin: 2px 10px;
+  border-radius: 8px;
+  color: #4b5563;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.admin-menu .el-menu-item:hover,
+.admin-menu .el-sub-menu__title:hover {
+  background: rgb(37 99 235 / 6%);
+  color: var(--el-color-primary);
+}
+
+.admin-menu .el-menu-item.is-active {
+  background: rgb(37 99 235 / 8%);
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+
+.admin-menu .el-menu-item .el-icon,
+.admin-menu .el-sub-menu__title .el-icon {
+  margin-right: 8px;
+}
+
+/* 折叠态:去掉外边距与 EP 内边距,图标与 logo 共用一条竖直中线(64px 中点) */
+.admin-menu.el-menu--collapse .el-menu-item,
+.admin-menu.el-menu--collapse .el-sub-menu__title {
+  margin: 2px 6px;
+  padding: 0;
+  justify-content: center;
+}
+
+.admin-menu.el-menu--collapse .el-menu-item .el-icon,
+.admin-menu.el-menu--collapse .el-sub-menu__title .el-icon {
+  margin-right: 0;
+}
+
+.el-popper.is-light .el-menu--popup {
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 180px;
+}
+
+.el-popper.is-light .el-menu--popup .el-menu-item {
+  height: 40px;
+  line-height: 40px;
+  margin: 2px 0;
+  border-radius: 6px;
+  color: #4b5563;
+}
+
+.el-popper.is-light .el-menu--popup .el-menu-item:hover {
+  background: rgb(37 99 235 / 6%);
+  color: var(--el-color-primary);
+}
+
+.el-popper.is-light .el-menu--popup .el-menu-item.is-active {
+  background: rgb(37 99 235 / 8%);
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+
+/* ---------- 细滚动条 ---------- */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: #d3d6dc;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b8bcc4;
+}

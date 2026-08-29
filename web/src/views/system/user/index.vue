@@ -1,42 +1,57 @@
 <template>
+  <PageHeader description="提供用户添加、编辑、删除功能，超管不可修改。">
+    <template #extra>
+      <el-button v-perm="'system:user:create'" type="primary" @click="openCreate">新建用户</el-button>
+      <el-button v-perm="'system:user:export'" @click="onExport">导出 Excel</el-button>
+    </template>
+  </PageHeader>
   <PaginatedTable ref="tableRef" :fetch="userApi.list" :query="filters">
     <template #toolbar>
-      <el-input v-model="filters.username" placeholder="用户名" clearable style="width: 180px" @keyup.enter="tableRef?.load()" />
+      <el-input v-model="filters.username" placeholder="用户名" clearable style="width: 180px" @keyup.enter="tableRef?.search()" />
       <el-select v-model="filters.status" placeholder="状态" clearable style="width: 120px">
         <el-option label="启用" :value="1" />
         <el-option label="停用" :value="2" />
       </el-select>
-      <el-button type="primary" @click="tableRef?.load()">查询</el-button>
-      <el-button v-perm="'system:user:create'" type="success" @click="openCreate">新建用户</el-button>
-      <el-button v-perm="'system:user:export'" @click="onExport">导出 Excel</el-button>
+      <FilterActions @search="tableRef?.search()" @reset="resetFilters" />
     </template>
 
     <el-table-column prop="id" label="ID" width="70" />
-    <el-table-column prop="username" label="用户名" />
-    <el-table-column prop="nickname" label="昵称" />
-    <el-table-column prop="email" label="邮箱" />
-    <el-table-column prop="phone" label="手机号" />
+    <el-table-column prop="username" label="用户名" min-width="110" />
+    <el-table-column prop="nickname" label="昵称" min-width="100" show-overflow-tooltip />
+    <el-table-column prop="email" label="邮箱" min-width="150" show-overflow-tooltip />
+    <el-table-column prop="phone" label="手机号" width="130" />
     <el-table-column label="状态" width="90">
       <template #default="{ row }">
         <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
       </template>
     </el-table-column>
-    <el-table-column prop="lastLoginAt" label="最后登录" width="170" />
-    <el-table-column label="操作" width="330" fixed="right">
+    <el-table-column label="最后登录" width="150">
+      <template #default="{ row }">{{ formatDateTime(row.lastLoginAt) }}</template>
+    </el-table-column>
+    <el-table-column label="操作" width="130" fixed="right" align="center">
       <template #default="{ row }">
-        <el-button v-perm="'system:user:update'" size="small" @click="openEdit(row)">编辑</el-button>
-        <el-button v-perm="'system:user:reset-password'" size="small" @click="onResetPassword(row)">重置密码</el-button>
-        <el-button v-perm="'system:user:assign-role'" size="small" @click="openRoles(row)">分配角色</el-button>
-        <el-button
-          v-perm="'system:user:update'"
-          size="small"
-          :type="row.status === 1 ? 'warning' : 'success'"
-          :disabled="row.super"
-          @click="onToggleStatus(row)"
-        >
-          {{ row.status === 1 ? '停用' : '启用' }}
-        </el-button>
-        <el-button v-perm="'system:user:delete'" size="small" type="danger" :disabled="row.super" @click="onDelete(row)">删除</el-button>
+        <el-button v-perm="'system:user:update'" link type="primary" @click="openEdit(row)">编辑</el-button>
+        <el-dropdown trigger="click" @command="(cmd: string) => onRowCommand(cmd, row)">
+          <el-button link type="primary">
+            更多<el-icon class="more-arrow"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-perm="'system:user:reset-password'" command="resetPassword">重置密码</el-dropdown-item>
+              <el-dropdown-item v-perm="'system:user:assign-role'" command="assignRoles">分配角色</el-dropdown-item>
+              <el-dropdown-item
+                v-perm="'system:user:update'"
+                command="toggleStatus"
+                :disabled="row.super"
+              >
+                {{ row.status === 1 ? '停用' : '启用' }}
+              </el-dropdown-item>
+              <el-dropdown-item v-perm="'system:user:delete'" command="delete" :disabled="row.super" divided>
+                <span class="danger-item">删除</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </template>
     </el-table-column>
   </PaginatedTable>
@@ -78,11 +93,22 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { userApi, roleApi, type UserItem, type RoleItem } from '../../../api'
+import { formatDateTime } from '../../../utils/format'
 import PaginatedTable from '../../../components/PaginatedTable.vue'
+import PageHeader from '../../../components/PageHeader.vue'
+import FilterActions from '../../../components/FilterActions.vue'
+import type { PaginatedTableHandle } from '../../../components/paginated-table'
 
-const tableRef = ref<{ load: () => Promise<void> } | undefined>()
+const tableRef = ref<PaginatedTableHandle | undefined>()
 const filters = reactive<{ username: string; status?: number }>({ username: '', status: undefined })
+
+function resetFilters() {
+  filters.username = ''
+  filters.status = undefined
+  tableRef.value?.search()
+}
 
 const editVisible = ref(false)
 const editForm = reactive({ id: 0, username: '', password: '', nickname: '', email: '', phone: '', status: 1 })
@@ -131,6 +157,24 @@ async function onToggleStatus(row: UserItem) {
   tableRef.value?.load()
 }
 
+// 「更多」下拉动作分发;动作实现与原行内按钮一致
+function onRowCommand(cmd: string, row: UserItem) {
+  switch (cmd) {
+    case 'resetPassword':
+      onResetPassword(row)
+      break
+    case 'assignRoles':
+      openRoles(row)
+      break
+    case 'toggleStatus':
+      onToggleStatus(row)
+      break
+    case 'delete':
+      onDelete(row)
+      break
+  }
+}
+
 async function onResetPassword(row: UserItem) {
   const { value } = await ElMessageBox.prompt(`为「${row.username}」设置新密码(至少 8 位)`, '重置密码', { inputType: 'password' })
   if (!value || value.length < 8) {
@@ -172,3 +216,14 @@ function onExport() {
     .catch(() => ElMessage.error('导出失败'))
 }
 </script>
+
+<style scoped>
+.more-arrow {
+  margin-left: 2px;
+  font-size: 12px;
+}
+
+.danger-item {
+  color: var(--el-color-danger);
+}
+</style>

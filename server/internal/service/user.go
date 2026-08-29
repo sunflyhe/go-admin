@@ -128,6 +128,9 @@ func (s *UserService) Create(ctx context.Context, req *UserSaveInput) (*UserItem
 	if req.Password == "" {
 		return nil, errs.InvalidParam("密码不能为空")
 	}
+	if err := ValidatePassword(req.Password); err != nil {
+		return nil, err
+	}
 	var count int64
 	if err := s.DB.WithContext(ctx).Model(&model.SysUser{}).Where("username = ?", req.Username).Count(&count).Error; err != nil {
 		return nil, errs.Internal("查询失败").WithCause(err)
@@ -234,6 +237,9 @@ func (s *UserService) SetStatus(ctx context.Context, id int64, req *UserSetStatu
 }
 
 func (s *UserService) ResetPassword(ctx context.Context, id int64, req *UserResetPasswordInput) error {
+	if err := ValidatePassword(req.Password); err != nil {
+		return err
+	}
 	hash, err := auth.HashPassword(req.Password)
 	if err != nil {
 		return errs.Internal("密码处理失败").WithCause(err)

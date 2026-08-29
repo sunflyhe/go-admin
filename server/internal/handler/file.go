@@ -5,6 +5,8 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -45,11 +47,17 @@ func (h *FileHandler) Upload(c *gin.Context) {
 	}
 	defer src.Close()
 
+	groupID, err := parseGroupIDForm(c)
+	if err != nil {
+		resp.Fail(c, err)
+		return
+	}
 	input := &service.FileUploadInput{
 		FileName: fh.Filename,
 		Size:     fh.Size,
 		Content:  src,
 		IsPublic: c.PostForm("isPublic") == "true",
+		GroupID:  groupID,
 	}
 	result, err := h.Svc.Upload(c.Request.Context(), actor, input)
 	if err != nil {
@@ -105,6 +113,50 @@ func (h *FileHandler) Delete(c *gin.Context) {
 		return
 	}
 	resp.OK(c, nil)
+}
+
+// Move PUT /api/v1/files/group
+// 批量把选中文件移动到目标分组,groupId=0 表示"未分组"。
+func (h *FileHandler) Move(c *gin.Context) {
+	var req FileMoveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Fail(c, errs.InvalidParam("参数错误: 需选择至少一个文件并提供 groupId"))
+		return
+	}
+	if err := h.Svc.Move(c.Request.Context(), req.IDs, *req.GroupID); err != nil {
+		resp.Fail(c, err)
+		return
+	}
+	resp.OK(c, nil)
+}
+
+// BatchDelete POST /api/v1/files/batch-delete
+// 用 POST 承载批量删除:带请求体的 DELETE 在网关与访问日志里都不友好。
+func (h *FileHandler) BatchDelete(c *gin.Context) {
+	var req FileBatchDeleteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Fail(c, errs.InvalidParam("参数错误: 请选择要删除的文件"))
+		return
+	}
+	if err := h.Svc.BatchDelete(c.Request.Context(), req.IDs); err != nil {
+		resp.Fail(c, err)
+		return
+	}
+	resp.OK(c, nil)
+}
+
+// parseGroupIDForm 读取上传表单里的 groupId。
+// 未传视为 0(未分组);传了却解析失败必须报错,否则文件会静默落进错误的分组。
+func parseGroupIDForm(c *gin.Context) (int64, error) {
+	raw := strings.TrimSpace(c.PostForm("groupId"))
+	if raw == "" {
+		return 0, nil
+	}
+	groupID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || groupID < 0 {
+		return 0, errs.InvalidParam("参数错误: groupId 非法")
+	}
+	return groupID, nil
 }
 
 // Download GET /api/v1/files/:id/download

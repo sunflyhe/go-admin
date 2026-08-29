@@ -1,31 +1,35 @@
 <template>
+  <PageHeader description="维护角色及其菜单与按钮权限，授权即时生效。">
+    <template #extra>
+      <el-button v-perm="'system:role:create'" type="primary" @click="openCreate">新建角色</el-button>
+    </template>
+  </PageHeader>
   <PaginatedTable ref="tableRef" :fetch="roleApi.list" :query="filters">
     <template #toolbar>
-      <el-input v-model="filters.name" placeholder="角色名" clearable style="width: 180px" @keyup.enter="tableRef?.load()" />
-      <el-button type="primary" @click="tableRef?.load()">查询</el-button>
-      <el-button v-perm="'system:role:create'" type="success" @click="openCreate">新建角色</el-button>
+      <el-input v-model="filters.name" placeholder="角色名" clearable style="width: 180px" @keyup.enter="tableRef?.search()" />
+      <FilterActions @search="tableRef?.search()" @reset="resetFilters" />
     </template>
 
     <el-table-column prop="id" label="ID" width="70" />
-    <el-table-column prop="name" label="角色名" />
-    <el-table-column prop="code" label="编码" />
-    <el-table-column prop="description" label="描述" />
-    <el-table-column prop="userCount" label="用户数" width="90" />
-    <el-table-column label="内置" width="80">
+    <el-table-column label="角色名" min-width="150">
       <template #default="{ row }">
-        <el-tag v-if="row.builtin" type="info">内置</el-tag>
+        {{ row.name }}
+        <el-tag v-if="row.builtin" type="info" size="small" class="builtin-tag">内置</el-tag>
       </template>
     </el-table-column>
+    <el-table-column prop="code" label="编码" width="130" />
+    <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
+    <el-table-column prop="userCount" label="成员数" width="90" align="right" />
     <el-table-column label="状态" width="90">
       <template #default="{ row }">
         <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
       </template>
     </el-table-column>
-    <el-table-column label="操作" width="260" fixed="right">
+    <el-table-column label="操作" width="190" fixed="right" align="center">
       <template #default="{ row }">
-        <el-button v-perm="'system:role:update'" size="small" @click="openEdit(row)">编辑</el-button>
-        <el-button v-perm="'system:role:assign-menu'" size="small" type="primary" plain @click="openMenus(row)">分配菜单</el-button>
-        <el-button v-perm="'system:role:delete'" size="small" type="danger" :disabled="row.builtin" @click="onDelete(row)">删除</el-button>
+        <el-button v-perm="'system:role:update'" link type="primary" @click="openEdit(row)">编辑</el-button>
+        <el-button v-perm="'system:role:assign-menu'" link type="primary" @click="openMenus(row)">分配菜单</el-button>
+        <el-button v-perm="'system:role:delete'" link type="danger" :disabled="row.builtin" @click="onDelete(row)">删除</el-button>
       </template>
     </el-table-column>
   </PaginatedTable>
@@ -68,9 +72,17 @@ import { nextTick, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { roleApi, menuApi, type RoleItem, type MenuNode } from '../../../api'
 import PaginatedTable from '../../../components/PaginatedTable.vue'
+import PageHeader from '../../../components/PageHeader.vue'
+import FilterActions from '../../../components/FilterActions.vue'
+import type { PaginatedTableHandle } from '../../../components/paginated-table'
 
-const tableRef = ref<{ load: () => Promise<void> } | undefined>()
+const tableRef = ref<PaginatedTableHandle | undefined>()
 const filters = reactive({ name: '' })
+
+function resetFilters() {
+  filters.name = ''
+  tableRef.value?.search()
+}
 
 const editVisible = ref(false)
 const editForm = reactive({ id: 0, name: '', code: '', description: '', status: 1 })
@@ -125,3 +137,9 @@ async function saveMenus() {
   tableRef.value?.load()
 }
 </script>
+
+<style scoped>
+.builtin-tag {
+  margin-left: 6px;
+}
+</style>

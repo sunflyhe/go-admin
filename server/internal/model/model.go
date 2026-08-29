@@ -27,6 +27,7 @@ type SysUser struct {
 	Email        string     `gorm:"size:128" json:"email"`
 	Phone        string     `gorm:"size:32" json:"phone"`
 	Avatar       string     `gorm:"size:255" json:"avatar"`
+	Signature    string     `gorm:"size:255" json:"signature"`
 	Status       int        `gorm:"default:1" json:"status"`
 	TokenVersion int64      `json:"-"` // 登出/重置密码后自增,使已签发 token 全部失效
 	LastLoginAt  *time.Time `json:"lastLoginAt"`
@@ -130,6 +131,7 @@ type SysFile struct {
 	Size       int64     `json:"size"`
 	MIME       string    `gorm:"size:128" json:"mime"`
 	Ext        string    `gorm:"size:16" json:"ext"`
+	GroupID    int64     `gorm:"index" json:"groupId"` // 所属分组,0=未分组
 	IsPublic   bool      `json:"isPublic"`
 	UploaderID int64     `json:"uploaderId"`
 	Uploader   string    `gorm:"size:64" json:"uploader"`
@@ -137,6 +139,17 @@ type SysFile struct {
 }
 
 func (SysFile) TableName() string { return "sys_file" }
+
+// SysFileGroup 文件分组。本轮只做一级分组,ParentID 先留位不开放嵌套。
+type SysFileGroup struct {
+	ID        int64     `gorm:"primaryKey" json:"id"`
+	ParentID  int64     `gorm:"index" json:"parentId"`
+	Name      string    `gorm:"size:64" json:"name"`
+	Sort      int       `gorm:"default:0" json:"sort"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (SysFileGroup) TableName() string { return "sys_file_group" }
 
 // SysRefreshToken 刷新令牌登记表,用于轮换与吊销。
 type SysRefreshToken struct {

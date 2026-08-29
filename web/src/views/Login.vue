@@ -1,21 +1,46 @@
 <template>
   <div class="login-page">
-    <el-card class="login-card">
-      <h2>Go Admin 管理后台</h2>
-      <el-form :model="form" @keyup.enter="onLogin">
+    <div class="login-card">
+      <div class="login-logo">
+        <el-icon :size="26"><Platform /></el-icon>
+      </div>
+      <h2 class="login-title">Go Admin</h2>
+      <p class="login-sub">Go + Vue3 企业后台开发底座</p>
+      <el-form class="login-form" :model="form" @keyup.enter="onLogin">
         <el-form-item>
-          <el-input v-model="form.username" placeholder="用户名" size="large" data-test="username" />
+          <el-input v-model="form.username" placeholder="用户名" size="large" data-test="username">
+            <template #prefix>
+              <el-icon><User /></el-icon>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item>
-          <el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password data-test="password" />
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="密码"
+            size="large"
+            show-password
+            data-test="password"
+          >
+            <template #prefix>
+              <el-icon><Lock /></el-icon>
+            </template>
+          </el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" size="large" style="width: 100%" :loading="loading" data-test="submit" @click="onLogin">
-            登 录
-          </el-button>
-        </el-form-item>
+        <el-button
+          class="login-btn"
+          type="primary"
+          size="large"
+          :loading="loading"
+          data-test="submit"
+          @click="onLogin"
+        >
+          登 录
+        </el-button>
       </el-form>
-    </el-card>
+    </div>
+    <p class="login-copyright">Powered by Go Admin</p>
   </div>
 </template>
 
@@ -23,6 +48,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Lock, Platform, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -50,7 +76,78 @@ async function onLogin() {
 </script>
 
 <style scoped>
-.login-page { height: 100vh; display: flex; align-items: center; justify-content: center; background: #f0f2f5; }
-.login-card { width: 360px; text-align: center; }
-h2 { margin: 8px 0 24px; }
+.login-page {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background:
+    radial-gradient(800px 400px at 15% 0%, rgb(37 99 235 / 7%), transparent 60%),
+    radial-gradient(700px 380px at 90% 100%, rgb(79 139 255 / 8%), transparent 60%),
+    #f8fafc;
+}
+
+.login-card {
+  width: 420px;
+  padding: 44px 40px 36px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid rgb(0 0 0 / 5%);
+  border-radius: 24px;
+  box-shadow: 0 18px 50px rgb(30 41 59 / 10%);
+}
+
+.login-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #4f8bff, #2563eb);
+  box-shadow: 0 10px 24px rgb(37 99 235 / 30%);
+}
+
+.login-title {
+  margin: 18px 0 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #1e293b;
+}
+
+.login-sub {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.login-form {
+  margin-top: 30px;
+  text-align: left;
+}
+
+.login-form :deep(.el-input__wrapper) {
+  border-radius: 8px;
+}
+
+.login-btn {
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 8px;
+  font-weight: 500;
+  letter-spacing: 6px;
+  /* 补偿 letter-spacing 造成的视觉偏移 */
+  text-indent: 6px;
+}
+
+.login-copyright {
+  position: absolute;
+  bottom: 24px;
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
 </style>

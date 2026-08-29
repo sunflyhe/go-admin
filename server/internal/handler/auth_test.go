@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +27,8 @@ func newAuthEnv(t *testing.T) (*gin.Engine, *pkgauth.Manager, *model.SysUser) {
 	super := testutil.SeedSuperAdmin(t, db)
 	jwt := pkgauth.NewManager("test-secret-1234567890", 30*time.Minute, 24*time.Hour, "go-admin")
 	svc := service.NewAuthService(db, jwt, discardLogger())
-	h := NewAuthHandler(svc)
+	fileSvc := service.NewFileService(db, mustLocalStorage(t), 5)
+	h := NewAuthHandler(svc, service.NewProfileService(db, fileSvc, "/files"))
 	authn := &middleware.Authn{DB: db, JWT: jwt}
 
 	r := gin.New()
@@ -36,7 +39,19 @@ func newAuthEnv(t *testing.T) (*gin.Engine, *pkgauth.Manager, *model.SysUser) {
 	authed.Use(authn.Require())
 	authed.POST("/auth/logout", h.Logout)
 	authed.GET("/auth/me", h.Me)
+	authed.PUT("/auth/profile", h.UpdateProfile)
+	authed.POST("/auth/password", h.ChangePassword)
+	authed.POST("/auth/avatar", h.UploadAvatar)
 	return r, jwt, &super
+}
+
+func mustLocalStorage(t *testing.T) service.Storage {
+	t.Helper()
+	storage, err := service.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return storage
 }
 
 func discardLogger() *slog.Logger {
@@ -110,7 +125,8 @@ func TestLoginDisabledAccount(t *testing.T) {
 	testutil.SeedSuperAdmin(t, db)
 	jwt := pkgauth.NewManager("test-secret-1234567890", 30*time.Minute, 24*time.Hour, "go-admin")
 	svc := service.NewAuthService(db, jwt, discardLogger())
-	h := NewAuthHandler(svc)
+	// 本用例只注册 login/me,不触及个人中心路由,Profile 依赖留空
+	h := NewAuthHandler(svc, nil)
 	authn := &middleware.Authn{DB: db, JWT: jwt}
 	r := gin.New()
 	r.POST("/auth/login", h.Login)
@@ -189,5 +205,97 @@ func TestUnauthorizedWithoutToken(t *testing.T) {
 	w, _ := doJSON(t, r, "GET", "/auth/me", "", nil)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("无凭据应返回 401: %d", w.Code)
+	}
+}
+
+// 个人中心三条自助路由同样必须要求登录。
+func TestProfileRoutesRequireLogin(t *testing.T) {
+	r, _, _ := newAuthEnv(t)
+	for _, req := range []struct{ method, path string }{
+		{"PUT", "/auth/profile"},
+		{"POST", "/auth/password"},
+		{"POST", "/auth/avatar"},
+	} {
+		w, _ := doJSON(t, r, req.method, req.path, "", map[string]string{"nickname": "x"})
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("%s %s 无凭据应 401: %d", req.method, req.path, w.Code)
+		}
+	}
+}
+
+func TestProfileUpdateIgnoresPrivilegedFields(t *testing.T) {
+	r, _, _ := newAuthEnv(t)
+	_, out := login(t, r, "admin", "12345678")
+	token := out["data"].(map[string]interface{})["accessToken"].(string)
+
+	// 请求体里夹带 username/status:DTO 没有这两个字段,应被静默丢弃
+	w, _ := doJSON(t, r, "PUT", "/auth/profile", token, map[string]interface{}{
+		"nickname": "爆爆龙宝宝", "signature": "广阔天地,大有作为.",
+		"username": "hacker", "status": 2,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("改资料应成功: %d %s", w.Code, w.Body.String())
+	}
+
+	_, me := doJSON(t, r, "GET", "/auth/me", token, nil)
+	user := me["data"].(map[string]interface{})["user"].(map[string]interface{})
+	if user["nickname"] != "爆爆龙宝宝" || user["signature"] != "广阔天地,大有作为." {
+		t.Fatalf("自助字段应生效: %+v", user)
+	}
+	if user["username"] != "admin" {
+		t.Fatalf("账号不得被自助接口改动: %v", user["username"])
+	}
+}
+
+func TestAvatarUploadOverHTTP(t *testing.T) {
+	r, _, _ := newAuthEnv(t)
+	_, out := login(t, r, "admin", "12345678")
+	token := out["data"].(map[string]interface{})["accessToken"].(string)
+
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	part, err := mw.CreateFormFile("file", "me.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	part.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+	part.Write(bytes.Repeat([]byte{0}, 32))
+	mw.Close()
+
+	req := httptest.NewRequest("POST", "/auth/avatar", body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("头像上传应成功: %d %s", w.Code, w.Body.String())
+	}
+
+	_, me := doJSON(t, r, "GET", "/auth/me", token, nil)
+	user := me["data"].(map[string]interface{})["user"].(map[string]interface{})
+	if avatar, _ := user["avatar"].(string); !strings.HasPrefix(avatar, "/files/") {
+		t.Fatalf("/me 应带回公开头像地址: %+v", user)
+	}
+}
+
+func TestChangePasswordOverHTTPKillsSession(t *testing.T) {
+	r, _, _ := newAuthEnv(t)
+	_, out := login(t, r, "admin", "12345678")
+	token := out["data"].(map[string]interface{})["accessToken"].(string)
+
+	w, _ := doJSON(t, r, "POST", "/auth/password", token, map[string]string{
+		"oldPassword": "12345678", "newPassword": "brand-new-pass1",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("改密应成功: %d %s", w.Code, w.Body.String())
+	}
+	// 不是只"版本号变了",而是旧凭据在下一个请求上立刻不可用
+	w2, _ := doJSON(t, r, "GET", "/auth/me", token, nil)
+	if w2.Code != http.StatusUnauthorized {
+		t.Fatalf("改密后旧 access token 应立即失效: %d", w2.Code)
+	}
+	w3, _ := login(t, r, "admin", "brand-new-pass1")
+	if w3.Code != http.StatusOK {
+		t.Fatalf("新密码应能登录: %d %s", w3.Code, w3.Body.String())
 	}
 }

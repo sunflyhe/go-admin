@@ -14,7 +14,7 @@ server/                  Go 后端(单二进制)
 ├── cmd/server/main.go   启动入口
 ├── internal/            私有代码(编译器禁止外部模块导入)
 │   ├── handler/         HTTP 处理器(参数绑定+响应)
-│   ├── service/         业务逻辑(含请求/响应 DTO,按域前缀命名如 UserSaveReq)
+│   ├── service/         不依赖 Gin 的业务逻辑(业务 Input/Output、Actor 等)
 │   ├── model/           GORM 数据模型
 │   ├── middleware/      请求 ID/访问日志/恢复/认证/权限校验
 │   ├── config/          配置加载(文件 + 环境变量覆盖)
@@ -28,7 +28,7 @@ deploy/    Dockerfile 与 docker-compose 示例
 docs/      OpenAPI 文档
 ```
 
-约定:新增业务模块时,handler/service/各自加文件、model 进 model 包,路由在 internal/router 注册;`internal/` 与 `pkg/` 的分界是"是否可被其他项目复用"。
+约定:HTTP DTO 放在 `internal/handler/*_dto.go`，Handler 显式转换后以 `context.Context` 调用不依赖 Gin 的 Service；新增业务模块时,handler/service/各自加文件、model 进 model 包,路由在 internal/router 注册;`internal/` 与 `pkg/` 的分界是"是否可被其他项目复用"。
 
 ## 快速开始(本地)
 

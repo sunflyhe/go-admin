@@ -16,14 +16,14 @@ func newEnv(t *testing.T) (*UserService, context.Context) {
 
 func TestCreateAndDuplicate(t *testing.T) {
 	svc, ctx := newEnv(t)
-	item, err := svc.Create(ctx, &UserSaveInput{Username: "alice", Password: "12345678", Nickname: "Alice"})
+	item, err := svc.Create(ctx, &UserSaveInput{Username: "alice", Password: "alice123456", Nickname: "Alice"})
 	if err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 	if item.ID == 0 {
 		t.Fatal("应返回用户 ID")
 	}
-	if _, err := svc.Create(ctx, &UserSaveInput{Username: "alice", Password: "12345678"}); err == nil {
+	if _, err := svc.Create(ctx, &UserSaveInput{Username: "alice", Password: "alice123456"}); err == nil {
 		t.Fatal("重复用户名应报冲突")
 	}
 }
@@ -42,7 +42,7 @@ func TestSuperAdminProtected(t *testing.T) {
 func TestDeleteCleansRelations(t *testing.T) {
 	svc, ctx := newEnv(t)
 	testutil.SeedSuperAdmin(t, svc.DB)
-	item, err := svc.Create(ctx, &UserSaveInput{Username: "bob", Password: "12345678"})
+	item, err := svc.Create(ctx, &UserSaveInput{Username: "bob", Password: "bob123456"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestResetPasswordInvalidatesToken(t *testing.T) {
 	var u model.SysUser
 	svc.DB.First(&u, 1)
 	before := u.TokenVersion
-	if err := svc.ResetPassword(ctx, 1, &UserResetPasswordInput{Password: "87654321"}); err != nil {
+	if err := svc.ResetPassword(ctx, 1, &UserResetPasswordInput{Password: "reset123456"}); err != nil {
 		t.Fatalf("重置密码失败: %v", err)
 	}
 	svc.DB.First(&u, 1)

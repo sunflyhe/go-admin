@@ -28,7 +28,9 @@ func NewTestDB(t *testing.T) *gorm.DB {
 		&model.SysUser{}, &model.SysRole{}, &model.SysMenu{},
 		&model.SysUserRole{}, &model.SysRoleMenu{},
 		&model.SysLoginLog{}, &model.SysAuditLog{},
-		&model.SysFile{}, &model.SysRefreshToken{},
+		&model.SysFile{}, &model.SysFileGroup{}, &model.SysRefreshToken{},
+		&model.ArticleCategory{}, &model.Article{}, &model.SysConfig{},
+		&model.SysDictType{}, &model.SysDictItem{},
 	); err != nil {
 		t.Fatalf("建表失败: %v", err)
 	}

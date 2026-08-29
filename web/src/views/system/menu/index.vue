@@ -1,29 +1,33 @@
 <template>
-  <el-card>
-    <div class="toolbar">
-      <el-button v-perm="'system:menu:create'" type="success" @click="openCreate(0)">新建根菜单</el-button>
-    </div>
-    <el-table :data="tree" border row-key="id" default-expand-all v-loading="loading">
+  <div>
+    <PageHeader description="维护目录、菜单与按钮权限码，决定角色可见的功能范围。">
+      <template #extra>
+        <el-button v-perm="'system:menu:create'" type="primary" @click="openCreate(0)">新建根菜单</el-button>
+      </template>
+    </PageHeader>
+    <el-card>
+      <el-table :data="tree" row-key="id" default-expand-all v-loading="loading">
       <el-table-column prop="name" label="名称" min-width="160" />
       <el-table-column label="类型" width="90">
         <template #default="{ row }">
-          <el-tag :type="['', 'info', 'success', 'warning'][row.type]">{{ ['', '目录', '页面', '按钮'][row.type] }}</el-tag>
+          <!-- 目录=橙(容器) / 页面=主色(主体) / 按钮=灰(叶子) -->
+          <el-tag :type="['', 'warning', 'primary', 'info'][row.type]">{{ ['', '目录', '页面', '按钮'][row.type] }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="path" label="路由" min-width="120" />
-      <el-table-column prop="component" label="组件" min-width="140" />
-      <el-table-column prop="permission" label="权限码" min-width="160" />
+      <el-table-column prop="path" label="路由" min-width="130" show-overflow-tooltip />
+      <el-table-column prop="component" label="组件" min-width="140" show-overflow-tooltip />
+      <el-table-column prop="permission" label="权限码" min-width="150" show-overflow-tooltip />
       <el-table-column prop="sort" label="排序" width="70" />
       <el-table-column label="状态" width="90">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" width="190" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button v-if="row.type !== 3" v-perm="'system:menu:create'" size="small" @click="openCreate(row.id)">添加子级</el-button>
-          <el-button v-perm="'system:menu:update'" size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button v-perm="'system:menu:delete'" size="small" type="danger" @click="onDelete(row)">删除</el-button>
+          <el-button v-if="row.type !== 3" v-perm="'system:menu:create'" link type="primary" @click="openCreate(row.id)">添加子级</el-button>
+          <el-button v-perm="'system:menu:update'" link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button v-perm="'system:menu:delete'" link type="danger" @click="onDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -64,14 +68,20 @@
       <el-button type="primary" @click="save">保存</el-button>
     </template>
   </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { menuApi, type MenuRow, type MenuNode } from '../../../api'
+import { menuApi, type MenuRow } from '../../../api'
+import PageHeader from '../../../components/PageHeader.vue'
 
-const tree = ref<MenuNode[]>([])
+// 树形表格直接用 /menus 全量行(含 status)在客户端组树;
+// /menus/tree 是给侧边栏用的精简结构,不含状态等管理字段
+type MenuRowTree = MenuRow & { children: MenuRowTree[] }
+
+const tree = ref<MenuRowTree[]>([])
 const flat = ref<MenuRow[]>([])
 const loading = ref(false)
 
@@ -83,12 +93,27 @@ const editForm = reactive({
 
 const parentOptions = computed(() => tree.value)
 
+function buildTree(rows: MenuRow[]): MenuRowTree[] {
+  const byId = new Map<number, MenuRowTree>()
+  for (const r of rows) byId.set(r.id, { ...r, children: [] })
+  const roots: MenuRowTree[] = []
+  // 与后端 tree 接口一致的排序:先按 sort,再按 id
+  const sorted = [...rows].sort((a, b) => a.sort - b.sort || a.id - b.id)
+  for (const r of sorted) {
+    const node = byId.get(r.id)!
+    const parent = r.parentId ? byId.get(r.parentId) : undefined
+    if (parent) parent.children.push(node)
+    else roots.push(node)
+  }
+  return roots
+}
+
 async function load() {
   loading.value = true
   try {
-    const [treeRes, listRes] = await Promise.all([menuApi.tree(), menuApi.list()])
-    tree.value = treeRes.data.data
+    const listRes = await menuApi.list()
     flat.value = listRes.data.data
+    tree.value = buildTree(flat.value)
   } finally {
     loading.value = false
   }
@@ -122,7 +147,7 @@ async function save() {
   load()
 }
 
-async function onDelete(row: MenuNode) {
+async function onDelete(row: MenuRowTree) {
   await ElMessageBox.confirm(`确认删除「${row.name}」?`, '提示', { type: 'warning' })
   await menuApi.remove(row.id)
   ElMessage.success('删除成功')
@@ -131,7 +156,3 @@ async function onDelete(row: MenuNode) {
 
 onMounted(load)
 </script>
-
-<style scoped>
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-</style>

@@ -41,10 +41,10 @@ jwt:
   secret: ""
   # access token 有效期(分钟),即登录后的直接访问凭据,到期由前端自动刷新。
   # 环境变量:ADMIN_JWT_ACCESS_TTL_MINUTES
-  accessTTLMinutes: 30
+  accessTTLMinutes: 60
   # refresh token 有效期(小时),用于无感续期;轮换使用,旧令牌立即吊销。
   # 环境变量:ADMIN_JWT_REFRESH_TTL_HOURS
-  refreshTTLHours: 168
+  refreshTTLHours: 3600
   # JWT 的 iss(签发者)声明,仅作标识,一般不改。
   issuer: "go-admin"
 

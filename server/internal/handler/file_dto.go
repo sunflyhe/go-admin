@@ -13,6 +13,11 @@ type FileListQuery struct {
 	page.Query
 	OriginName string `form:"originName"`
 	IsPublic   *bool  `form:"isPublic"`
+	// GroupID 用指针区分"没传"(全部分组)与"传了 0"(未分组)。
+	GroupID *int64 `form:"groupId"`
+	// category: all|image|video|file。合法取值与上传白名单同源,
+	// 故不加 binding:"oneof",统一由 Service 裁决,避免两处枚举漂移。
+	Category string `form:"category"`
 }
 
 func (q *FileListQuery) toInput() *service.FileListInput {
@@ -20,7 +25,22 @@ func (q *FileListQuery) toInput() *service.FileListInput {
 		Query:      q.Query,
 		OriginName: q.OriginName,
 		IsPublic:   q.IsPublic,
+		GroupID:    q.GroupID,
+		Category:   service.FileCategory(q.Category),
 	}
+}
+
+// FileMoveRequest PUT /api/v1/files/group 请求体。
+// groupId 用指针 + required:0(未分组)是合法目标,binding 只要求字段出现。
+type FileMoveRequest struct {
+	IDs     []int64 `json:"ids" binding:"required,min=1,max=200,dive,gt=0"`
+	GroupID *int64  `json:"groupId" binding:"required"`
+}
+
+// FileBatchDeleteRequest POST /api/v1/files/batch-delete 请求体。
+// 用 POST 而不是带请求体的 DELETE:后者在网关与访问日志里都不友好。
+type FileBatchDeleteRequest struct {
+	IDs []int64 `json:"ids" binding:"required,min=1,max=200,dive,gt=0"`
 }
 
 // FileUploadResponse 上传响应(URL 字段由 Handler 按访问策略拼装)。

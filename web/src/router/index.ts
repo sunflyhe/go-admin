@@ -18,9 +18,13 @@ export const staticRoutes: RouteRecordRaw[] = [
     redirect: '/dashboard',
     children: [
       { path: 'dashboard', name: 'dashboard', component: () => import('../views/dashboard/index.vue'), meta: { title: '仪表盘' } },
-      { path: '403', name: 'forbidden', component: () => import('../views/Forbidden.vue'), meta: { title: '无权限' } }
+      { path: '403', name: 'forbidden', component: () => import('../views/Forbidden.vue'), meta: { title: '无权限' } },
+      // 非菜单功能页:不出现在侧边栏,由列表页按钮跳转进入
+      { path: 'article/article/edit', name: 'article-edit', component: () => import('../views/article/article/edit.vue'), meta: { title: '编辑文章' } }
     ]
-  }
+  },
+  // 兜底:未注册路径(如直接输入目录 path)回仪表盘,避免整页空白
+  { path: '/:pathMatch(.*)*', redirect: '/dashboard' }
 ]
 
 export const router = createRouter({

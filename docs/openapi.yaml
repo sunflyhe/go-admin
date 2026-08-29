@@ -15,6 +15,8 @@ tags:
   - name: menu
   - name: log
   - name: file
+  - name: config
+  - name: dict
 paths:
   /healthz:
     get:
@@ -29,7 +31,7 @@ paths:
   /api/v1/auth/login:
     post:
       tags: [auth]
-      summary: 登录(失败 5 次锁定 15 分钟)
+      summary: 登录(用户名+IP 失败 5 次锁 15 分钟;单账号连续失败 10 次锁 15 分钟,换 IP 不复位)
       requestBody:
         content:
           application/json:
@@ -71,6 +73,50 @@ paths:
       summary: 当前用户信息、权限码集合与可见菜单树
       security: [{ bearerAuth: [] }]
       responses: { "200": { description: user + permissions + menus } }
+  /api/v1/auth/profile:
+    put:
+      tags: [auth]
+      summary: 个人中心-修改本人资料(仅作用于登录者自身,故不挂 permission code)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname: { type: string, maxLength: 64 }
+                email: { type: string, maxLength: 128 }
+                phone: { type: string, maxLength: 32 }
+                signature: { type: string, maxLength: 255, description: 个人签名 }
+      responses: { "200": { description: ok }, "401": { description: 未登录 } }
+  /api/v1/auth/password:
+    post:
+      tags: [auth]
+      summary: 个人中心-修改本人密码(校验原密码;新密码需 ≥8 位且含字母和数字;成功后 access 与 refresh 全部立即失效)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassword, newPassword]
+              properties:
+                oldPassword: { type: string }
+                newPassword: { type: string, minLength: 8, maxLength: 128 }
+      responses: { "200": { description: ok }, "400": { description: 原密码不正确 } }
+  /api/v1/auth/avatar:
+    post:
+      tags: [auth]
+      summary: 个人中心-上传本人头像(图片专用窄白名单,上限 2MB,存为公开文件)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses: { "200": { description: avatar 访问地址 }, "400": { description: 非图片或超限 } }
   /api/v1/users:
     get:
       tags: [user]
@@ -94,7 +140,7 @@ paths:
               required: [username, password]
               properties:
                 username: { type: string, minLength: 3 }
-                password: { type: string, minLength: 8 }
+                password: { type: string, minLength: 8, maxLength: 128, description: 需同时包含字母和数字 }
                 nickname: { type: string }
                 email: { type: string }
                 phone: { type: string }
@@ -123,7 +169,7 @@ paths:
   /api/v1/users/{id}/password:
     put:
       tags: [user]
-      summary: 重置密码(system:user:reset-password;重置后旧凭据失效)
+      summary: 重置密码(system:user:reset-password;新密码需 ≥8 位且含字母和数字;重置后旧凭据失效)
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "200": { description: ok } }
@@ -232,16 +278,111 @@ paths:
               properties:
                 file: { type: string, format: binary }
                 isPublic: { type: string, enum: ["true", "false"] }
-      responses: { "201": { description: url/storePath }, "400": { description: 类型或大小不合规 } }
+                groupId: { type: integer, default: 0, description: 目标分组,0 或缺省为未分组 }
+      responses: { "201": { description: url/storePath }, "400": { description: 类型、大小或 groupId 不合规 } }
     get:
       tags: [file]
       summary: 文件列表(system:file:list)
       security: [{ bearerAuth: [] }]
-      responses: { "200": { description: 分页列表 } }
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: originName, in: query, schema: { type: string }, description: 原始文件名模糊匹配 }
+        - { name: isPublic, in: query, schema: { type: boolean } }
+        - name: groupId
+          in: query
+          schema: { type: integer }
+          description: 按分组筛选;不传=全部分组,传 0=未分组(两者语义不同,不可合并)
+        - name: category
+          in: query
+          schema: { type: string, enum: [all, image, video, file], default: all }
+          description: >-
+            类型标签。image 取值集合由上传扩展名白名单派生;video 按 mime 前缀判定,
+            而当前上传白名单不含音视频,故该档恒为空(将来放开白名单自动生效,无需改查询);
+            file 是 image 与 video 的补集,文档与压缩包都落这档。未知取值 400
+      responses: { "200": { description: 分页列表 }, "400": { description: 分类取值非法 } }
+  /api/v1/files/group:
+    put:
+      tags: [file]
+      summary: 批量移动文件到分组(groupId=0 表示未分组;system:file:move)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids, groupId]
+              properties:
+                ids: { type: array, items: { type: integer }, minItems: 1, maxItems: 200 }
+                groupId: { type: integer }
+      responses:
+        { "200": { description: ok }, "400": { description: 集合为空或超限 }, "404": { description: 有 id 不存在或目标分组不存在 } }
+  /api/v1/files/batch-delete:
+    post:
+      tags: [file]
+      summary: 批量删除文件(元数据与磁盘文件同事务;system:file:delete)
+      description: 用 POST 承载批量删除,带请求体的 DELETE 在网关与访问日志里都不友好。任一 id 不存在则整批不做变更。
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: integer }, minItems: 1, maxItems: 200 }
+      responses: { "200": { description: ok }, "404": { description: 有 id 不存在,未做任何删除 } }
+  /api/v1/file-groups:
+    get:
+      tags: [file]
+      summary: 分组列表(含各组文件数与"未分组"计数;system:file:list)
+      description: >-
+        文件中心的层级是"类型标签 → 分组 → 文件",所以计数按 category 限定,
+        与 GET /api/v1/files 用同一套谓词;分组本身不按类型过滤,计数为 0 的组仍会返回。
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string, enum: [all, image, video, file], default: all }
+          description: 计数口径;取值与文件列表一致,未知值 400
+      responses: { "200": { description: "{ groups:[{id,name,count}], unfiled, total }" } }
+    post:
+      tags: [file]
+      summary: 新建分组(system:filegroup:create)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: { name: { type: string, maxLength: 64 } }
+      responses: { "201": { description: 新分组 }, "409": { description: 同名分组已存在(大小写不敏感) } }
+  /api/v1/file-groups/{id}:
+    put:
+      tags: [file]
+      summary: 重命名分组(system:filegroup:update)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: { name: { type: string, maxLength: 64 } }
+      responses: { "200": { description: ok }, "409": { description: 同名分组已存在 } }
+    delete:
+      tags: [file]
+      summary: 删除分组(system:filegroup:delete)
+      description: 仅允许删除空分组。分组是整理手段,删除不得连带删除文件。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 分组不存在 }, "409": { description: 分组下仍有文件 } }
   /api/v1/files/{id}/download:
     get:
       tags: [file]
-      summary: 下载私有文件(登录即可)
+      summary: 下载私有文件(system:file:list)
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "200": { description: 文件流 } }
@@ -252,6 +393,259 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
       responses: { "200": { description: ok } }
+  /api/v1/article-categories:
+    get:
+      tags: [article]
+      summary: 文章分类列表(含各分类文章数,含草稿;article:category:list)
+      description: 分类是少量枚举,不分页;计数按全量口径,删除前的冲突判断与之同源。
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: "[{ id, name, sort, count, createdAt }]" } }
+    post:
+      tags: [article]
+      summary: 新建分类(article:category:create)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 64 }
+                sort: { type: integer, default: 0 }
+      responses: { "201": { description: 新分类 }, "409": { description: 同名分类已存在(大小写不敏感) } }
+  /api/v1/article-categories/{id}:
+    put:
+      tags: [article]
+      summary: 更新分类(article:category:update)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 64 }
+                sort: { type: integer, default: 0 }
+      responses: { "200": { description: ok }, "404": { description: 分类不存在 }, "409": { description: 同名分类已存在 } }
+    delete:
+      tags: [article]
+      summary: 删除分类(article:category:delete)
+      description: 仅允许删除空分类,避免删分类连带孤立文章。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 分类不存在 }, "409": { description: 分类下仍有文章 } }
+  /api/v1/articles:
+    get:
+      tags: [article]
+      summary: 文章分页列表(article:article:list)
+      description: 列表不回传正文;分类名 LEFT JOIN,已删分类回退为"未分类"。
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: title, in: query, schema: { type: string }, description: 标题模糊匹配 }
+        - { name: categoryId, in: query, schema: { type: integer }, description: "不传=全部分类;0=未分类" }
+        - { name: status, in: query, schema: { type: integer, enum: [0, 1, 2], default: 0 }, description: 0=全部 }
+      responses: { "200": { description: 分页结果 } }
+    post:
+      tags: [article]
+      summary: 新建文章(article:article:create)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, content, status]
+              properties:
+                categoryId: { type: integer, default: 0 }
+                title: { type: string, maxLength: 128 }
+                summary: { type: string, maxLength: 255 }
+                content: { type: string, description: 富文本 HTML }
+                status: { type: integer, enum: [1, 2], description: 1=草稿 2=已发布 }
+      responses:
+        { "201": { description: 新文章 }, "404": { description: 指向的分类不存在 }, "400": { description: 入参不合法 } }
+  /api/v1/articles/{id}:
+    get:
+      tags: [article]
+      summary: 文章详情(article:article:list)
+      description: 含正文 content,编辑弹窗据此回填富文本。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: 详情 }, "404": { description: 文章不存在 } }
+    put:
+      tags: [article]
+      summary: 更新文章(article:article:update)
+      description: 作者以创建者为准;首次转发布时补记 published_at,再次编辑不覆盖首发时间。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, content, status]
+              properties:
+                categoryId: { type: integer, default: 0 }
+                title: { type: string, maxLength: 128 }
+                summary: { type: string, maxLength: 255 }
+                content: { type: string }
+                status: { type: integer, enum: [1, 2] }
+      responses: { "200": { description: ok }, "404": { description: 文章或分类不存在 } }
+    delete:
+      tags: [article]
+      summary: 删除文章(article:article:delete)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 文章不存在 } }
+  /api/v1/article-images:
+    post:
+      tags: [article]
+      summary: 富文本配图上传(article:article:upload-image)
+      description: >-
+        复用文件上传的白名单、大小与真实 MIME 校验,并强制 is_public=true ——
+        正文 <img> 无法携带 Authorization,配图必须公开可访问。
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        { "201": { description: "{ id, originName, storePath, url, size, mime }" }, "400": { description: 类型/大小不合法 } }
+  /api/v1/configs:
+    get:
+      tags: [config]
+      summary: 参数分页列表(system:config:list)
+      description: keyword 同时模糊匹配参数名与参数键;按更新时间倒序。
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: keyword, in: query, schema: { type: string }, description: 参数名/参数键模糊匹配 }
+      responses: { "200": { description: 分页结果 } }
+    post:
+      tags: [config]
+      summary: 新建参数(system:config:create)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, key]
+              properties:
+                name: { type: string, maxLength: 64 }
+                key: { type: string, maxLength: 64, description: "小写字母开头,仅含小写字母、数字、点、中划线、下划线" }
+                value: { type: string, maxLength: 512 }
+                remark: { type: string, maxLength: 255 }
+      responses: { "201": { description: 新参数 }, "409": { description: 参数键已存在 } }
+  /api/v1/configs/{id}:
+    put:
+      tags: [config]
+      summary: 更新参数(system:config:update)
+      description: 内置参数(builtin=1)只允许改名称、值与备注,改键名返回 409。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, key]
+              properties:
+                name: { type: string, maxLength: 64 }
+                key: { type: string, maxLength: 64 }
+                value: { type: string, maxLength: 512 }
+                remark: { type: string, maxLength: 255 }
+      responses: { "200": { description: ok }, "404": { description: 参数不存在 }, "409": { description: 键名冲突或内置参数改键名 } }
+    delete:
+      tags: [config]
+      summary: 删除参数(system:config:delete)
+      description: 内置参数不可删除。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 参数不存在 }, "409": { description: 内置参数不允许删除 } }
+  /api/v1/dict-types:
+    get:
+      tags: [dict]
+      summary: 字典类型列表(system:dict:list)
+      description: 类型是少量枚举,不分页;附带各类型子项数(含停用)。
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: "[{ id, name, key, remark, builtin, itemCount, createdAt, updatedAt }]" } }
+    post:
+      tags: [dict]
+      summary: 新建字典类型(system:dict:create)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, key]
+              properties:
+                name: { type: string, maxLength: 64 }
+                key: { type: string, maxLength: 64, description: "小写字母开头,仅含小写字母、数字、点、中划线、下划线" }
+                remark: { type: string, maxLength: 255 }
+      responses: { "201": { description: 新字典类型 }, "409": { description: 字典键已存在 } }
+  /api/v1/dict-types/{id}:
+    put:
+      tags: [dict]
+      summary: 更新字典类型(system:dict:update)
+      description: 内置字典(builtin=1)只允许改名称与备注,改键名返回 409。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 字典类型不存在 }, "409": { description: 键名冲突或内置字典改键名 } }
+    delete:
+      tags: [dict]
+      summary: 删除字典类型(system:dict:delete)
+      description: 内置字典不可删除;仍有子项时返回 409,需先清空子项。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 字典类型不存在 }, "409": { description: 内置字典不允许删除或仍有子项 } }
+  /api/v1/dict-types/{id}/items:
+    get:
+      tags: [dict]
+      summary: 字典项列表(system:dict:list)
+      description: 返回类型下全部子项(含停用),按 sort 升序。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: 子项列表 }, "404": { description: 字典类型不存在 } }
+    post:
+      tags: [dict]
+      summary: 新建字典项(system:dict:create)
+      description: 同一类型内 value 唯一;status 不传默认启用;tagType 为前端 el-tag 配色(primary/success/warning/danger/info,可空)。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "201": { description: 新字典项 }, "404": { description: 字典类型不存在 }, "409": { description: 同类型下已存在同值子项 }, "400": { description: 入参不合法(含非法 tagType) } }
+  /api/v1/dict-items/{id}:
+    put:
+      tags: [dict]
+      summary: 更新字典项(system:dict:update)
+      description: 可改标签名/描述/数据值/排序/标签配色/状态/备注;类型归属不提供修改。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 字典项不存在 }, "409": { description: 同类型下已存在同值子项 } }
+    delete:
+      tags: [dict]
+      summary: 删除字典项(system:dict:delete)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: ok }, "404": { description: 字典项不存在 } }
+  /api/v1/dict-data:
+    get:
+      tags: [dict]
+      summary: 按字典键读取启用子项(仅登录,无需字典管理权限)
+      description: 业务页面的下拉数据源;只返回 status=启用的子项,按 sort 升序,携带 tagType 供彩色标签渲染;字典未配置时返回空列表。
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: key, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: "[{ label, value, tagType }]" }, "400": { description: 缺少 key 参数 } }
 components:
   securitySchemes:
     bearerAuth:

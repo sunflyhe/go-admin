@@ -37,6 +37,13 @@ request.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /** 静默失败:不弹全局 toast,由调用方自行兜底(用于缩略图等后台批量请求) */
+    silentError?: boolean
+  }
+}
+
 request.interceptors.response.use(
   (res) => res, // 保留 axios 响应结构,调用方以 res.data 取统一响应体
   async (err: AxiosError<{ code?: number; message?: string }>) => {
@@ -62,8 +69,9 @@ request.interceptors.response.use(
       clearAndRedirect()
       return Promise.reject(err)
     }
-    const msg = resp?.data?.message || '网络异常,请稍后再试'
-    ElMessage.error(msg)
+    if (!err.config?.silentError) {
+      ElMessage.error(resp?.data?.message || '网络异常,请稍后再试')
+    }
     return Promise.reject(err)
   }
 )

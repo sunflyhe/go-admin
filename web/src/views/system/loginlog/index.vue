@@ -1,32 +1,52 @@
 <template>
+  <PageHeader description="记录账号登录成功与失败，含来源 IP 与浏览器。" />
   <PaginatedTable ref="tableRef" :fetch="logApi.loginLogs" :query="filters">
     <template #toolbar>
-      <el-input v-model="filters.username" placeholder="账号" clearable style="width: 180px" @keyup.enter="tableRef?.load()" />
+      <el-input v-model="filters.username" placeholder="用户名" clearable style="width: 180px" @keyup.enter="tableRef?.search()" />
       <el-select v-model="filters.success" placeholder="结果" clearable style="width: 120px">
         <el-option label="成功" :value="true" />
         <el-option label="失败" :value="false" />
       </el-select>
-      <el-button type="primary" @click="tableRef?.load()">查询</el-button>
+      <FilterActions @search="tableRef?.search()" @reset="resetFilters" />
     </template>
-    <el-table-column prop="id" label="ID" width="80" />
-    <el-table-column prop="username" label="账号" />
-    <el-table-column label="结果" width="90">
+    <el-table-column label="#" type="index" :index="rowNumber" width="70" />
+    <el-table-column prop="username" label="用户名" width="140" />
+    <el-table-column prop="ip" label="登录IP" width="150" />
+    <el-table-column prop="userAgent" label="浏览器" min-width="220" show-overflow-tooltip />
+    <el-table-column label="登录状态" width="120">
       <template #default="{ row }">
-        <el-tag :type="row.success ? 'success' : 'danger'">{{ row.success ? '成功' : '失败' }}</el-tag>
+        <!-- 失败原因不再单占列,悬停状态标签查看 -->
+        <el-tooltip v-if="!row.success && row.failReason" :content="row.failReason" placement="top">
+          <el-tag type="danger">失败</el-tag>
+        </el-tooltip>
+        <el-tag v-else :type="row.success ? 'success' : 'danger'">{{ row.success ? '成功' : '失败' }}</el-tag>
       </template>
     </el-table-column>
-    <el-table-column prop="failReason" label="失败原因" />
-    <el-table-column prop="ip" label="IP" width="140" />
-    <el-table-column prop="userAgent" label="User-Agent" min-width="180" show-overflow-tooltip />
-    <el-table-column prop="createdAt" label="时间" width="180" />
+    <el-table-column label="登录时间" width="180">
+      <template #default="{ row }">{{ formatDateTime(row.createdAt, true) }}</template>
+    </el-table-column>
   </PaginatedTable>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { logApi } from '../../../api'
+import { formatDateTime } from '../../../utils/format'
 import PaginatedTable from '../../../components/PaginatedTable.vue'
+import PageHeader from '../../../components/PageHeader.vue'
+import FilterActions from '../../../components/FilterActions.vue'
+import type { PaginatedTableHandle } from '../../../components/paginated-table'
 
-const tableRef = ref<{ load: () => Promise<void> } | undefined>()
+const tableRef = ref<PaginatedTableHandle | undefined>()
 const filters = reactive<{ username: string; success?: boolean }>({ username: '', success: undefined })
+
+function resetFilters() {
+  filters.username = ''
+  filters.success = undefined
+  tableRef.value?.search()
+}
+
+function rowNumber(index: number) {
+  return ((tableRef.value?.page ?? 1) - 1) * (tableRef.value?.pageSize ?? 20) + index + 1
+}
 </script>
