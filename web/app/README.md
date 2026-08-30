@@ -4,7 +4,7 @@
 
 ## 技术栈与工程约定
 
-与管理端同构:Vue 3 + Vite + TypeScript + Pinia + vue-router + axios(统一请求层 `src/api/request.ts`),ESLint Flat Config + Prettier,Vitest;Node 版本锁定 24.20.0(最新 LTS,见 `.nvmrc`)。刻意未引入 UI 组件库,确定 C 端视觉方案时再加。
+与管理端同构:Vue 3 + Vite + TypeScript + Pinia + vue-router + axios(统一请求层 `src/api/request.ts`),ESLint Flat Config + Prettier,Vitest;样式用 Tailwind CSS v4(`@tailwindcss/vite` 插件,入口 `src/styles/tailwind.css`),可与 scoped CSS 混用;Node 版本锁定 24.20.0(最新 LTS,见 `.nvmrc`)。刻意未引入 UI 组件库,确定 C 端视觉方案时再加。
 
 ## 命令
 

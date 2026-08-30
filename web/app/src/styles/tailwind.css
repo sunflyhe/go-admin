@@ -1,0 +1,3 @@
+/* Tailwind v4 入口:含 preflight 基础重置与全部工具类。
+   主题定制用 @theme 指令(如品牌色),需要时再扩展。 */
+@import 'tailwindcss';

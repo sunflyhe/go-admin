@@ -4,8 +4,8 @@ import { createPinia } from 'pinia'
 import Home from './Home.vue'
 
 describe('Home', () => {
-  it('渲染标题', () => {
+  it('渲染品牌标题', () => {
     const wrapper = mount(Home, { global: { plugins: [createPinia()] } })
-    expect(wrapper.find('h1').text()).toBe('App')
+    expect(wrapper.find('h1').text()).toContain('Go Admin')
   })
 })

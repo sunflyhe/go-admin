@@ -1,6 +1,6 @@
 // admin 管理端路由:认证、系统管理、内容业务全部在此注册(文件名即端名,与 api.go 平级)。
 // 鉴权模型统一为 authed(登录) + RequirePerm(权限码),权限码与菜单种子数据一一对应。
-// 各业务域拆成小注册函数,按顺序阅读即是完整的后台能力清单。
+// 路由自上而下线性声明,按序阅读即是完整的后台能力清单。
 package router
 
 import (
@@ -11,35 +11,19 @@ import (
 )
 
 func registerAdminRoutes(w *routeWires) {
-	registerAuthRoutes(w)
-	registerUserRoutes(w)
-	registerRoleRoutes(w)
-	registerMenuRoutes(w)
-	registerLogRoutes(w)
-	registerFileRoutes(w)
-	registerConfigRoutes(w)
-	registerDictRoutes(w)
-	registerArticleRoutes(w)
-}
-
-// registerAuthRoutes 登录/刷新为公开接口;logout/me/个人中心仅需登录——
-// 只作用于登录者自身,入参里没有 id,因此与 logout/me 一样只过 Require()。
-// 头像复用文件存储但不要求 system:file:upload —— 否则普通用户无法设置自己的头像。
-func registerAuthRoutes(w *routeWires) {
-	authSvc := service.NewAuthService(w.DB, w.JWT, w.Logger)
-	authHandler := handler.NewAuthHandler(authSvc, w.profileSvc)
-
+	// ---- 认证:登录/刷新公开;logout/me/个人中心仅需登录——
+	// 只作用于登录者自身,入参里没有 id,因此与 logout/me 一样只过 Require()。
+	// 头像复用文件存储但不要求 system:file:upload,否则普通用户无法设置自己的头像。
+	authHandler := handler.NewAuthHandler(service.NewAuthService(w.DB, w.JWT, w.Logger), w.profileSvc)
 	w.api.POST("/auth/login", authHandler.Login)
 	w.api.POST("/auth/refresh", authHandler.Refresh)
-
 	w.authed.POST("/auth/logout", authHandler.Logout)
 	w.authed.GET("/auth/me", authHandler.Me)
 	w.authed.PUT("/auth/profile", authHandler.UpdateProfile)
 	w.authed.POST("/auth/password", authHandler.ChangePassword)
 	w.authed.POST("/auth/avatar", authHandler.UploadAvatar)
-}
 
-func registerUserRoutes(w *routeWires) {
+	// ---- 用户管理
 	userHandler := handler.NewUserHandler(service.NewUserService(w.DB), w.profileSvc)
 	ug := w.authed.Group("/users")
 	{
@@ -53,9 +37,8 @@ func registerUserRoutes(w *routeWires) {
 		ug.PUT("/:id/password", w.authn.RequirePerm("system:user:reset-password"), userHandler.ResetPassword)
 		ug.PUT("/:id/roles", w.authn.RequirePerm("system:user:assign-role"), userHandler.AssignRoles)
 	}
-}
 
-func registerRoleRoutes(w *routeWires) {
+	// ---- 角色管理
 	roleHandler := handler.NewRoleHandler(service.NewRoleService(w.DB))
 	rg := w.authed.Group("/roles")
 	{
@@ -66,9 +49,8 @@ func registerRoleRoutes(w *routeWires) {
 		rg.GET("/:id/menus", w.authn.RequirePerm("system:role:list"), roleHandler.Menus)
 		rg.PUT("/:id/menus", w.authn.RequirePerm("system:role:assign-menu"), roleHandler.AssignMenus)
 	}
-}
 
-func registerMenuRoutes(w *routeWires) {
+	// ---- 菜单管理
 	menuHandler := handler.NewMenuHandler(service.NewMenuService(w.DB))
 	mg := w.authed.Group("/menus")
 	{
@@ -78,23 +60,18 @@ func registerMenuRoutes(w *routeWires) {
 		mg.PUT("/:id", w.authn.RequirePerm("system:menu:update"), menuHandler.Update)
 		mg.DELETE("/:id", w.authn.RequirePerm("system:menu:delete"), menuHandler.Delete)
 	}
-}
 
-// registerLogRoutes 审计日志与登录日志:只读,各自独立权限码。
-func registerLogRoutes(w *routeWires) {
+	// ---- 日志:审计与登录日志,只读,各自独立权限码
 	auditHandler := handler.NewAuditHandler(service.NewAuditService(w.DB))
 	w.authed.GET("/audit-logs", w.authn.RequirePerm("system:auditlog:list"), auditHandler.List)
 
 	llHandler := handler.NewLoginLogHandler(service.NewLoginLogService(w.DB))
 	w.authed.GET("/login-logs", w.authn.RequirePerm("system:loginlog:list"), llHandler.List)
-}
 
-func registerFileRoutes(w *routeWires) {
+	// ---- 文件中心:公开文件也通过数据库 is_public 标记校验后再输出。
+	// 不能把整个上传目录直接静态暴露,否则私有文件可按 store_path 绕过鉴权访问。
 	fileHandler := w.fileHandler()
 	fileGroupHandler := handler.NewFileGroupHandler(service.NewFileGroupService(w.DB))
-
-	// 公开文件也通过数据库的 is_public 标记校验后再输出。不能把整个上传目录
-	// 直接静态暴露，否则私有文件可按 store_path 绕过鉴权访问。
 	if strings.HasPrefix(w.Cfg.Upload.PublicURL, "/") {
 		w.engine.GET(w.Cfg.Upload.PublicURL+"/*storePath", fileHandler.PublicDownload)
 	}
@@ -116,9 +93,8 @@ func registerFileRoutes(w *routeWires) {
 		fgh.PUT("/:id", w.authn.RequirePerm("system:filegroup:update"), fileGroupHandler.Update)
 		fgh.DELETE("/:id", w.authn.RequirePerm("system:filegroup:delete"), fileGroupHandler.Delete)
 	}
-}
 
-func registerConfigRoutes(w *routeWires) {
+	// ---- 系统参数
 	configHandler := handler.NewConfigHandler(service.NewConfigService(w.DB))
 	cg := w.authed.Group("/configs")
 	{
@@ -127,11 +103,9 @@ func registerConfigRoutes(w *routeWires) {
 		cg.PUT("/:id", w.authn.RequirePerm("system:config:update"), configHandler.Update)
 		cg.DELETE("/:id", w.authn.RequirePerm("system:config:delete"), configHandler.Delete)
 	}
-}
 
-// registerDictRoutes 字典:类型与子项维护走 system:dict:*;
-// 业务侧按按键读取 /dict-data 仅需登录(任意登录用户都可能用到字典数据)。
-func registerDictRoutes(w *routeWires) {
+	// ---- 字典:类型与子项维护走 system:dict:*;
+	// 业务侧按键读取 /dict-data 仅需登录(任意登录用户都可能用到字典数据)。
 	dictTypeHandler := handler.NewDictTypeHandler(service.NewDictTypeService(w.DB))
 	dt := w.authed.Group("/dict-types")
 	{
@@ -148,11 +122,8 @@ func registerDictRoutes(w *routeWires) {
 		di.DELETE("/:id", w.authn.RequirePerm("system:dict:delete"), dictTypeHandler.DeleteItem)
 	}
 	w.authed.GET("/dict-data", dictTypeHandler.DictData)
-}
 
-// registerArticleRoutes 文章资讯:分类、文章与富文本配图上传,权限码前缀 article:*。
-// 面向 C 端的公开只读接口放 api.go,不复用这里的权限码模型。
-func registerArticleRoutes(w *routeWires) {
+	// ---- 文章资讯:分类、文章与富文本配图上传,权限码前缀 article:*
 	categoryHandler := handler.NewArticleCategoryHandler(service.NewArticleCategoryService(w.DB))
 	acg := w.authed.Group("/article-categories")
 	{
