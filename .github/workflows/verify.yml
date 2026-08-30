@@ -37,25 +37,22 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  compose-smoke:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build and start the complete stack
-        run: docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml up -d --build --wait
-      - name: Verify migration and reverse proxy
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+          cache-dependency-path: api/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - name: Build release package
+        run: bash deploy/binary/build-release.sh
+      - name: Verify artifacts
         run: |
-          docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml exec -T api wget -q -O - http://localhost:8080/readyz
-          # app 端 SPA 在根路径,admin 管理端在 /admin/
-          curl --fail --retry 10 --retry-connrefused http://localhost:18080/
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:18080/admin/)" = 200
-          # admin 端登录接口参数错误应返回 400(路由与反代打通)
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST http://localhost:18080/admin-api/auth/login)" = 400
-          # app 端 portal 开放接口匿名可访问
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:18080/api/portal/demo)" = 200
-      - name: Print service logs on failure
-        if: failure()
-        run: docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml logs --no-color
-      - name: Shut down stack
-        if: always()
-        run: docker compose --env-file deploy/.env.ci -f deploy/docker-compose.yml down -v
+          test -x release/go-admin
+          test -f release/web/app/index.html
+          test -f release/web/admin/index.html
+          test -f release/go-admin-release.tar.gz

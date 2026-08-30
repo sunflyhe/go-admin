@@ -26,7 +26,7 @@ api/                     Go 后端 API(单二进制)
 web/
 ├── admin/    Vue3 管理端
 └── app/      C 端用户前端(预留,尚未初始化)
-deploy/    Dockerfile 与 docker-compose 示例
+deploy/    部署套件:发布包构建脚本、systemd/nginx 模板、部署手册(deploy/binary/)
 ```
 
 约定:HTTP DTO 放在 `internal/handler/*_dto.go`，Handler 显式转换后以 `context.Context` 调用不依赖 Gin 的 Service；新增业务模块时,handler/service/各自加文件、model 进 model 包,路由在 internal/router 注册;`internal/` 与 `pkg/` 的分界是"是否可被其他项目复用"。
@@ -75,20 +75,25 @@ npm run dev        # 开发模式,访问 http://localhost:5173/admin/,/admin-api
 npm run build      # 生产构建,产物在 web/admin/dist(路由基座 /admin/)
 ```
 
-管理端接口统一走 `/admin-api/*`,应用端(app)接口走 `/api/*`;开发时可由 API 通过 `server.webDirs` 托管两端静态产物(见 `configs/config.example.yaml`),生产交付建议使用下方的 Docker Compose，由 Nginx 单独托管前端静态文件并反代 API。
-前端统一使用 Node 24.20.0（最新 LTS，见 `web/admin/.nvmrc`）；CI 与 Web 构建镜像使用相同版本。`npm run build` 会检查入口 JS、最大 CSS 与富文本懒加载包的体积预算，超标将失败。
+管理端接口统一走 `/admin-api/*`,应用端(app)接口走 `/api/*`;开发时可由 API 通过 `server.webDirs` 托管两端静态产物(见 `configs/config.example.yaml`)。
+前端统一使用 Node 24.20.0（最新 LTS，见 `web/admin/.nvmrc`）；CI 使用相同版本。`npm run build` 会检查入口 JS、最大 CSS 与富文本懒加载包的体积预算，超标将失败。
 
-## Docker Compose 部署
+## 部署
+
+单一交付形态:**一个静态链接的 Linux 二进制 + 双端前端产物 + 一份配置**,内网交付无需 Nginx(API 自托管两端页面,访问 `http://IP:8080/` 与 `/admin/`),公网交付在前面挂 Nginx 配域名与 HTTPS。
 
 ```bash
-cp deploy/.env.example deploy/.env
-# 编辑 deploy/.env，替换 MySQL 密码和至少 32 位的 JWT 密钥
-docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+bash deploy/binary/build-release.sh   # 产出 release/go-admin-release.tar.gz
 ```
 
-部署完成后:应用端(app)访问 `http://localhost:8080/`，管理端(admin)访问 `http://localhost:8080/admin/`。Nginx 负责两端 SPA 路由与静态资源，`/api`(app 接口)、`/admin-api`(admin 接口)、`/files` 转发到 API；MySQL 数据与上传文件分别使用命名卷持久化。
+按客户环境二选一,照手册执行:
 
-API 默认不信任 `X-Forwarded-For` 等转发头；此 Compose 将 Web 容器固定为内部地址 `172.30.0.10`，并仅信任该地址。若改用自己的反向代理部署，请在 API 配置的 `server.trustedProxies`（或 `ADMIN_SERVER_TRUSTED_PROXIES`，逗号分隔）中填写实际代理 IP/CIDR，切勿配置为全网段。
+| 手册 | 适用 |
+|---|---|
+| [deploy/binary/README.md](deploy/binary/README.md) | 通用 Linux(二进制 + systemd + Nginx + HTTPS) |
+| [deploy/binary/README-baota.md](deploy/binary/README-baota.md) | 客户服务器带宝塔面板 |
+
+要点:API 默认只监听 `127.0.0.1:8080`(公网流量一律经 Nginx 反代,`server.trustedProxies` 填实际代理地址,**切勿配置为全网段**)。
 
 **分离部署**：两端产物构建独立，可分开托管。跨域名/跨源部署时（前端域名与 API 不同源、前端直连 API），需要两步：① API 侧启用 CORS——在 `server.corsAllowedOrigins`（或 `ADMIN_SERVER_CORS_ALLOWED_ORIGINS`，逗号分隔）填写前端来源白名单；② admin 端构建时用 `VITE_PUBLIC_BASE=/` 覆盖路径基座（默认基座 `/admin/` 仅用于同域路径共存形态），并设置 `VITE_API_BASE_URL` 指向 API 完整地址。若每个前端域名各自用 Nginx 把 `/api`、`/admin-api`、`/files` 反代到 API（域内保持同源），则无需任何 CORS 配置。
 

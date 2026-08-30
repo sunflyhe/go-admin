@@ -60,7 +60,7 @@ const securities = [
   { k: '密码只存 bcrypt', v: '登录失败统一文案,用户名+IP 双维度限流锁定' },
   { k: '凭据可即时作废', v: 'token_version 机制,异常会话一次变更全部失效' },
   { k: '超管保护', v: '内置账号与内置角色不可删改,系统永远有管理入口' },
-  { k: '私有化交付', v: 'Docker Compose 一键起,MySQL 数据与上传目录卷持久化' }
+  { k: '私有化交付', v: '一个静态二进制 + 一份配置即完整交付,内网无外部依赖' }
 ]
 
 function iconPath(name: string): string {
@@ -141,7 +141,7 @@ function iconPath(name: string): string {
           <pre class="arch-tree">{{ frontendTree.join('\n') }}</pre>
         </div>
       </div>
-      <p class="arch-note">数据库变更全部走顺序 SQL 迁移(内嵌进二进制,启动自动执行),禁止 AutoMigrate;CI 覆盖 Go 测试、前端三件套与 Compose 冒烟。</p>
+      <p class="arch-note">数据库变更全部走顺序 SQL 迁移(内嵌进二进制,启动自动执行),禁止 AutoMigrate;CI 覆盖 Go 测试、前端三件套与发布包构建。</p>
     </section>
 
     <section id="security" class="section section-dark">
