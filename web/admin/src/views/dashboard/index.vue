@@ -5,8 +5,8 @@
       <div class="hero-text">
         <h2>{{ greeting }},{{ displayName }}</h2>
         <p>{{ todayText }} · 欢迎使用 Go Admin 管理后台</p>
-        <div v-if="auth.user?.roles?.length" class="hero-roles">
-          <span v-for="r in auth.user.roles" :key="r" class="role-chip">{{ r }}</span>
+        <div v-if="auth.user?.roleNames?.length" class="hero-roles">
+          <span v-for="r in auth.user.roleNames" :key="r" class="role-chip">{{ r }}</span>
         </div>
       </div>
       <el-icon class="hero-icon" :size="72"><Platform /></el-icon>

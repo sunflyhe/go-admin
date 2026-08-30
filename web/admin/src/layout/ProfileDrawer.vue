@@ -23,6 +23,20 @@
             </div>
           </el-upload>
 
+          <!-- 角色显示名(/auth/me 的 roleNames,回退角色码);超管角色标红 -->
+          <div class="role-tags">
+            <el-tag
+              v-for="(name, i) in displayRoleNames"
+              :key="name"
+              :type="user?.roles?.[i] === 'super_admin' ? 'danger' : 'primary'"
+              effect="light"
+              size="small"
+            >
+              {{ name }}
+            </el-tag>
+            <span v-if="!displayRoleNames.length" class="role-empty">未分配角色</span>
+          </div>
+
           <el-form label-position="left" label-width="80px" class="drawer-form">
             <el-form-item label="用户名">
               <el-input :model-value="user?.username" disabled />
@@ -90,6 +104,8 @@ const auth = useAuthStore()
 const router = useRouter()
 const tab = ref('basic')
 const user = computed(() => auth.user)
+// 老的登录会话可能没有 roleNames(后端新增字段),回退到角色码
+const displayRoleNames = computed(() => user.value?.roleNames ?? user.value?.roles ?? [])
 
 const form = reactive({ nickname: '', email: '', phone: '', signature: '' })
 const pwd = reactive({ oldPassword: '', newPassword: '', confirm: '' })
@@ -176,18 +192,39 @@ async function savePassword() {
 }
 
 .drawer-body {
-  /* 与 el-form 的 label-width 保持一致:头像与提交按钮都对齐到输入框左边缘 */
-  --profile-label-width: 80px;
   padding-top: 4px;
 }
 
-.avatar-upload,
+/* 头像与提交按钮居中:与下方角色标签、整体抽屉视觉对齐 */
+.avatar-upload {
+  display: flex;
+  justify-content: center;
+}
+
 .form-actions {
-  margin-left: var(--profile-label-width);
+  margin-left: 0;
+}
+
+.form-actions :deep(.el-form-item__content) {
+  display: flex;
+  justify-content: center;
 }
 
 .drawer-form {
   margin-top: 18px;
+}
+
+.role-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.role-empty {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .drawer-tip {

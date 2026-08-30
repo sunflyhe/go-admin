@@ -10,6 +10,8 @@ export interface UserProfile {
   avatar: string
   signature: string
   roles: string[]
+  /** 角色显示名,与 roles 一一对应 */
+  roleNames: string[]
   super: boolean
 }
 

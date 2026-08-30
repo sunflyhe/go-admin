@@ -57,7 +57,8 @@ type UserProfile struct {
 	Phone     string   `json:"phone"`
 	Avatar    string   `json:"avatar"`
 	Signature string   `json:"signature"`
-	Roles     []string `json:"roles"`
+	Roles     []string `json:"roles"`     // 角色 code,机器可读(如 super_admin)
+	RoleNames []string `json:"roleNames"` // 角色显示名,与 Roles 一一对应,供界面展示
 	Super     bool     `json:"super"`
 }
 
@@ -297,14 +298,22 @@ func (s *AuthService) permissions(ctx context.Context, user *model.SysUser) ([]s
 }
 
 func (s *AuthService) profile(ctx context.Context, user *model.SysUser) UserProfile {
-	var roleCodes []string
+	// 角色码与显示名成对取出(按角色 ID 排序保证两切片一一对应)
+	var roleRows []struct {
+		Code string
+		Name string
+	}
 	_ = s.DB.WithContext(ctx).
 		Table("sys_role").
 		Joins("JOIN sys_user_role ON sys_user_role.role_id = sys_role.id").
 		Where("sys_user_role.user_id = ? AND sys_role.status = ?", user.ID, model.StatusEnabled).
-		Pluck("sys_role.code", &roleCodes).Error
-	if roleCodes == nil {
-		roleCodes = []string{}
+		Order("sys_role.id").
+		Scan(&roleRows).Error
+	roleCodes := make([]string, 0, len(roleRows))
+	roleNames := make([]string, 0, len(roleRows))
+	for _, r := range roleRows {
+		roleCodes = append(roleCodes, r.Code)
+		roleNames = append(roleNames, r.Name)
 	}
 	return UserProfile{
 		ID:        user.ID,
@@ -315,6 +324,7 @@ func (s *AuthService) profile(ctx context.Context, user *model.SysUser) UserProf
 		Avatar:    user.Avatar,
 		Signature: user.Signature,
 		Roles:     roleCodes,
+		RoleNames: roleNames,
 		Super:     user.IsSuperAdmin(),
 	}
 }
