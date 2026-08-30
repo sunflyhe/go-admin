@@ -1,4 +1,4 @@
-// admin 管理端路由:认证、系统管理、内容业务全部在此注册。
+// admin 管理端路由:认证、系统管理、内容业务全部在此注册(文件名即端名,与 api.go 平级)。
 // 鉴权模型统一为 authed(登录) + RequirePerm(权限码),权限码与菜单种子数据一一对应。
 // 各业务域拆成小注册函数,按顺序阅读即是完整的后台能力清单。
 package router
@@ -151,7 +151,7 @@ func registerDictRoutes(w *routeWires) {
 }
 
 // registerArticleRoutes 文章资讯:分类、文章与富文本配图上传,权限码前缀 article:*。
-// 面向 C 端的公开只读接口放 routes_api.go,不复用这里的权限码模型。
+// 面向 C 端的公开只读接口放 api.go,不复用这里的权限码模型。
 func registerArticleRoutes(w *routeWires) {
 	categoryHandler := handler.NewArticleCategoryHandler(service.NewArticleCategoryService(w.DB))
 	acg := w.authed.Group("/article-categories")

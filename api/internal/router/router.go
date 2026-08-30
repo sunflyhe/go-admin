@@ -1,5 +1,5 @@
 // 路由装配入口:引擎与全局中间件、健康检查、SPA 静态托管在此完成,
-// 具体路由按端拆分到同包的 routes_*.go(routes_admin / routes_api / 未来的新端)。
+// 具体路由按端拆分到同包的 admin.go / api.go(新端再加新文件)。
 package router
 
 import (
