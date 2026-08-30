@@ -9,3 +9,4 @@ web/*/dist/
 
 # ZCode 工作区数据(计划/会话缓存)
 .zcode/
+release/

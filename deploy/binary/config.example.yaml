@@ -1,0 +1,45 @@
+# Go Admin API 配置模板(路线 B 二进制部署)。
+# 复制到 /opt/go-admin/config.yaml 后,至少完成三处修改(搜 TODO):
+#   1. mysql.dsn 的密码  2. jwt.secret(至少 32 位,openssl rand -base64 32 生成)
+server:
+  # 只监听本机回环:外部流量一律经 Nginx 反代,API 不直接暴露公网
+  addr: "127.0.0.1:8080"
+  # 生产必须 release:关闭 Gin 调试输出
+  mode: "release"
+  # 可信反向代理:Nginx 在本机,填回环地址,客户端真实 IP 才能进入审计与登录日志
+  trustedProxies: ["127.0.0.1"]
+  # 同域路径共存部署:无需 CORS。仅当前端直连另一域名时才配置来源白名单
+  corsAllowedOrigins: []
+  # 多端 SPA 托管:app 挂 /,admin 挂 /admin/(路径相对 WorkingDirectory=/opt/go-admin)
+  webDirs:
+    app: "web/app"
+    admin: "web/admin"
+
+mysql:
+  # TODO: 改成你创建的数据库账号密码(Ubuntu apt 安装的 MySQL 默认 root 走 socket 认证,
+  # 建议按 README 单独建一个应用账号,而不是用 root)
+  dsn: "goadmin:CHANGE_ME@tcp(127.0.0.1:3306)/go_admin?charset=utf8mb4&parseTime=True&loc=Local"
+  # 2C2G 机器保持默认即可;若与业务共用数据库再调优
+  maxOpenConns: 50
+  maxIdleConns: 10
+  connMaxLifetimeSec: 3600
+  slowThresholdMs: 500
+
+jwt:
+  # TODO: openssl rand -base64 32 生成,泄露等于全站登录态可伪造
+  secret: "CHANGE_ME_TO_AT_LEAST_32_RANDOM_CHARS"
+  accessTTLMinutes: 30
+  refreshTTLHours: 168
+  issuer: "go-admin"
+
+log:
+  level: "info"
+
+upload:
+  # 上传文件落盘目录(相对 WorkingDirectory),systemd 已授权写 /opt/go-admin
+  dir: "./data/uploads"
+  maxSizeMB: 20
+  publicURL: "/files"
+
+audit:
+  retentionDays: 0 # 操作日志永久保留;按需改天数
