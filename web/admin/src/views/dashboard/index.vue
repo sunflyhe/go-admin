@@ -20,7 +20,7 @@
       <div v-if="pages.length" class="quick-grid">
         <div v-for="p in pages" :key="p.id" class="quick-item" @click="router.push(p.path)">
           <span class="quick-icon">
-            <el-icon :size="20"><component :is="p.icon || 'Menu'" /></el-icon>
+            <el-icon :size="20"><component :is="menuIcon(p.icon)" /></el-icon>
           </span>
           <span class="quick-name">{{ p.name }}</span>
         </div>
@@ -34,6 +34,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Platform } from '@element-plus/icons-vue'
+import { menuIcon } from '../../layout/menuIcons'
 import { useAuthStore } from '../../stores/auth'
 import type { MenuNode } from '../../api'
 

@@ -2,6 +2,6 @@
 .DS_Store
 api/data
 api/configs/config.yaml
-web/node_modules
-web/dist
+web/*/node_modules
+web/*/dist
 deploy/.env

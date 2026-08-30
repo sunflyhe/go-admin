@@ -84,7 +84,7 @@ api/
 
    ```bash
    cd api && go test ./... && go vet ./... && git diff --check
-   cd web && npm run lint && npm run typecheck && npm run build
+   cd web/admin && npm run lint && npm run typecheck && npm run build
    ```
 
 4. 涉及 API、认证、权限、上传或前端行为时，补充相应测试。浏览器、真实数据库、Docker 等未运行的验证必须明确标注为未验证，不能由静态检查替代。

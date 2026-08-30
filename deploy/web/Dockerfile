@@ -1,9 +1,9 @@
 # Web 构建与 Nginx 静态托管。/api 与 /files 由 nginx.conf 反代给 API 容器。
-FROM node:22.22.0-alpine AS build
+FROM node:24.20.0-alpine AS build
 WORKDIR /src
-COPY web/package.json web/package-lock.json ./
+COPY web/admin/package.json web/admin/package-lock.json ./
 RUN npm ci
-COPY web/ .
+COPY web/admin/ .
 RUN npm run build
 
 FROM nginx:1.27-alpine

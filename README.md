@@ -23,7 +23,9 @@ api/                     Go 后端 API(单二进制)
 ├── migrations/          SQL migration(embed,启动时自动执行 up)
 ├── test/                测试基础设施(内存库 + 种子)
 └── configs/             配置示例(configs/config.example.yaml)
-web/       Vue3 管理端
+web/
+├── admin/    Vue3 管理端
+└── app/      C 端用户前端(预留,尚未初始化)
 deploy/    Dockerfile 与 docker-compose 示例
 ```
 
@@ -59,15 +61,15 @@ go run ./cmd/api -config configs/config.yaml
 ### 4. 前端
 
 ```bash
-cd web
-nvm use                 # 使用仓库锁定的 Node 22.22.0
+cd web/admin
+nvm use                 # 使用仓库锁定的 Node 24.20.0
 npm install
 npm run dev        # 开发模式,代理到 localhost:8080
-npm run build      # 生产构建,产物在 web/dist
+npm run build      # 生产构建,产物在 web/admin/dist
 ```
 
-开发时可由 API 托管 `web/dist`；生产交付建议使用下方的 Docker Compose，由 Nginx 单独托管前端静态文件并反代 API。
-前端统一使用 Node 22.22.0（见 `web/.nvmrc`）；CI 与 Web 构建镜像使用相同版本。`npm run build` 会检查入口 JS、最大 CSS 与富文本懒加载包的体积预算，超标将失败。
+开发时可由 API 托管 `web/admin/dist`；生产交付建议使用下方的 Docker Compose，由 Nginx 单独托管前端静态文件并反代 API。
+前端统一使用 Node 24.20.0（最新 LTS，见 `web/admin/.nvmrc`）；CI 与 Web 构建镜像使用相同版本。`npm run build` 会检查入口 JS、最大 CSS 与富文本懒加载包的体积预算，超标将失败。
 
 ## Docker Compose 部署
 
@@ -113,7 +115,7 @@ API 默认不信任 `X-Forwarded-For` 等转发头；此 Compose 将 Web 容器�
 
 ```bash
 cd api && go test ./... && go vet ./...
-cd web && npm run lint && npm run typecheck && npm run build
+cd web/admin && npm run lint && npm run typecheck && npm run build
 ```
 
 前端工程包含 ESLint(Flat Config)+ Prettier;`npm run typecheck` 同时覆盖 src 与 vite.config.ts。

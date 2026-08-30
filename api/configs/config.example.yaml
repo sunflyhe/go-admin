@@ -17,7 +17,7 @@ server:
   # 以避免客户端伪造来源 IP。仅在 API 位于 Nginx/网关之后时填写实际代理地址。
   # 环境变量:ADMIN_SERVER_TRUSTED_PROXIES（多个值用英文逗号分隔）
   trustedProxies: []
-  # 可选:由后端托管前端静态文件目录(先执行 npm run build 生成 web/dist)。
+  # 可选:由后端托管前端静态文件目录(先执行 npm run build 生成 web/admin/dist)。
   # 未匹配到 API 与真实文件时自动回退 index.html(SPA history 路由刷新场景)。
   # 留空则前端单独部署(Nginx 静态 + /api、/files 反代)。
   # 环境变量:ADMIN_SERVER_WEB_DIR

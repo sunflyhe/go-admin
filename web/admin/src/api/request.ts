@@ -2,7 +2,10 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
-const request = axios.create({ baseURL: '/api/v1', timeout: 30000 })
+// API 基础地址:默认空(同源相对路径);前后端分域部署时在 .env 设置 VITE_API_BASE_URL 覆盖
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+const request = axios.create({ baseURL: API_BASE_URL, timeout: 30000 })
 
 let refreshing: Promise<string | null> | null = null
 
@@ -18,7 +21,7 @@ async function doRefresh(): Promise<string | null> {
   const refreshToken = localStorage.getItem('refreshToken')
   if (!refreshToken) return null
   try {
-    const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken })
+    const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken })
     if (data.code === 0) {
       const { accessToken, refreshToken: newRefresh } = data.data
       localStorage.setItem('accessToken', accessToken)

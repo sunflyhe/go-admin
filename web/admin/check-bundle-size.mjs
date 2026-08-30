@@ -1,3 +1,6 @@
+// 构建产物体积预算检查:vite build 之后由 `npm run check:bundle` 执行。
+// 超出任一预算(或找不到对应产物)即退出码 1,使 build 失败,防止依赖膨胀悄然发生。
+// 调整预算前先确认必要性:入口 JS 影响首屏加载,富文本单独放宽的前提是它始终待在懒加载 chunk 里。
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 

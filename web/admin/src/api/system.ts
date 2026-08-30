@@ -1,4 +1,4 @@
-import request from './request'
+import request, { API_BASE_URL } from './request'
 import type { ApiBody, MenuNode, Paged } from './types'
 
 export interface UserItem {
@@ -25,7 +25,7 @@ export const userApi = {
   setStatus: (id: number, status: number) => request.put<ApiBody<null>>(`/users/${id}/status`, { status }),
   resetPassword: (id: number, password: string) => request.put<ApiBody<null>>(`/users/${id}/password`, { password }),
   assignRoles: (id: number, roleIds: number[]) => request.put<ApiBody<null>>(`/users/${id}/roles`, { roleIds }),
-  exportUrl: '/api/v1/users/export'
+  exportUrl: `${API_BASE_URL}/users/export`
 }
 
 export interface RoleItem {
