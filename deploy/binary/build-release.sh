@@ -20,9 +20,8 @@ echo "== 3/4 构建 app 应用端 =="
 (cd web/app && npm ci && npm run build)
 cp -r web/app/dist "$OUT/web/app"
 
-echo "== 4/4 打包配置与单元文件 =="
+echo "== 4/4 打包配置与模板 =="
 cp deploy/binary/config.example.yaml "$OUT/config.yaml"
-cp deploy/binary/go-admin.service "$OUT/"
 cp deploy/binary/nginx.conf "$OUT/"
 tar -czf "$OUT/go-admin-release.tar.gz" -C "$OUT" .
 

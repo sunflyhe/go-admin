@@ -46,10 +46,32 @@ chown -R goadmin:goadmin /opt/go-admin
 sudo -u goadmin ./go-admin -config config.yaml   # 手动试跑一次,看到 "HTTP 服务启动" 即成,Ctrl+C
 ```
 
-## 4. systemd 托管 API
+## 4. systemd 托管 API(命令行运维场景;宝塔面板用【Go 项目】托管的跳过本步)
 
 ```bash
-cp go-admin.service /etc/systemd/system/
+cat > /etc/systemd/system/go-admin.service <<'EOF'
+[Unit]
+Description=Go Admin API
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=goadmin
+Group=goadmin
+WorkingDirectory=/opt/go-admin
+ExecStart=/opt/go-admin/go-admin -config /opt/go-admin/config.yaml
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/go-admin
+
+[Install]
+WantedBy=multi-user.target
+EOF
 systemctl daemon-reload
 systemctl enable --now go-admin
 systemctl status go-admin            # active (running)
