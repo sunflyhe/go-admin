@@ -29,10 +29,12 @@ export interface ProfileForm {
 }
 
 export function login(username: string, password: string) {
-  return request.post<ApiBody<{ accessToken: string; refreshToken: string; user: UserProfile }>>('/auth/login', {
-    username,
-    password
-  })
+  // silentError:登录失败的展示交给登录页的常驻错误条,不走全局 toast
+  return request.post<ApiBody<{ accessToken: string; refreshToken: string; user: UserProfile }>>(
+    '/auth/login',
+    { username, password },
+    { silentError: true }
+  )
 }
 
 export function logout() {

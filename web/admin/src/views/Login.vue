@@ -7,6 +7,15 @@
       <h2 class="login-title">Go Admin</h2>
       <p class="login-sub">Go + Vue3 企业后台开发底座</p>
       <el-form class="login-form" :model="form" @keyup.enter="onLogin">
+        <!-- 登录失败用常驻错误条而非 toast:限流/密码错误需要用户停留阅读,3 秒 toast 容易错过 -->
+        <el-alert
+          v-if="errorMessage"
+          class="login-error"
+          type="error"
+          :title="errorMessage"
+          show-icon
+          :closable="false"
+        />
         <el-form-item>
           <el-input v-model="form.username" placeholder="用户名" size="large" data-test="username">
             <template #prefix>
@@ -55,6 +64,7 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
+const errorMessage = ref('')
 const form = reactive({ username: '', password: '' })
 
 async function onLogin() {
@@ -62,13 +72,16 @@ async function onLogin() {
     ElMessage.warning('请输入用户名和密码')
     return
   }
+  errorMessage.value = ''
   loading.value = true
   try {
     await auth.login(form.username, form.password)
     ElMessage.success('登录成功')
     router.push((route.query.redirect as string) || '/dashboard')
-  } catch {
-    /* 错误提示由拦截器统一处理 */
+  } catch (e) {
+    // 登录请求已标记 silentError,这里展示常驻错误条(取后端统一文案)
+    const ax = e as { response?: { data?: { message?: string } } }
+    errorMessage.value = ax.response?.data?.message || '登录失败,请稍后再试'
   } finally {
     loading.value = false
   }
@@ -122,6 +135,10 @@ async function onLogin() {
   margin: 8px 0 0;
   font-size: 13px;
   color: #64748b;
+}
+
+.login-error {
+  margin-bottom: 18px;
 }
 
 .login-form {
