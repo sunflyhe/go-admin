@@ -16,7 +16,7 @@ func NewPortalHandler() *PortalHandler {
 	return &PortalHandler{}
 }
 
-// DemoInfo GET /api/v1/portal/demo 的响应体。
+// DemoInfo GET /api/portal/demo 的响应体。
 type DemoInfo struct {
 	Name       string   `json:"name"`
 	Tagline    string   `json:"tagline"`
@@ -24,7 +24,7 @@ type DemoInfo struct {
 	ServerTime string   `json:"serverTime"`
 }
 
-// Demo GET /api/v1/portal/demo
+// Demo GET /api/portal/demo
 // 演示 portal 组的公开接口形态:无鉴权、统一响应体,供 app 端联调与模板参考。
 func (h *PortalHandler) Demo(c *gin.Context) {
 	resp.OK(c, DemoInfo{

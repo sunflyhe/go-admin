@@ -6,7 +6,7 @@ import (
 	"github.com/hesunfly/hesunfly-admin-go/api/pkg/page"
 )
 
-// LoginLogListQuery GET /api/v1/login-logs 查询参数。
+// LoginLogListQuery GET /admin-api/login-logs 查询参数。
 type LoginLogListQuery struct {
 	page.Query
 	Username  string `form:"username"`

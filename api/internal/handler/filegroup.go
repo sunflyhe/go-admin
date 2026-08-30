@@ -19,7 +19,7 @@ func NewFileGroupHandler(svc *service.FileGroupService) *FileGroupHandler {
 	return &FileGroupHandler{Svc: svc}
 }
 
-// List GET /api/v1/file-groups
+// List GET /admin-api/file-groups
 // 返回分组及其文件数,另含"未分组"与"全部"两个伪节点的计数;计数按 category 限定。
 func (h *FileGroupHandler) List(c *gin.Context) {
 	var query FileGroupListQuery
@@ -35,7 +35,7 @@ func (h *FileGroupHandler) List(c *gin.Context) {
 	resp.OK(c, tree)
 }
 
-// Create POST /api/v1/file-groups
+// Create POST /admin-api/file-groups
 func (h *FileGroupHandler) Create(c *gin.Context) {
 	var req FileGroupSaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -50,7 +50,7 @@ func (h *FileGroupHandler) Create(c *gin.Context) {
 	resp.Created(c, group)
 }
 
-// Update PUT /api/v1/file-groups/:id
+// Update PUT /admin-api/file-groups/:id
 func (h *FileGroupHandler) Update(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -69,7 +69,7 @@ func (h *FileGroupHandler) Update(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Delete DELETE /api/v1/file-groups/:id
+// Delete DELETE /admin-api/file-groups/:id
 // 仅允许删除空分组;非空分组由 Service 返回冲突,避免删目录连带删文件。
 func (h *FileGroupHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)

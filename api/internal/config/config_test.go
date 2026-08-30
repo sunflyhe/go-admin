@@ -47,3 +47,18 @@ func TestLoadRejectsInvalidTrustedProxy(t *testing.T) {
 		t.Fatalf("无效可信代理应被拒绝,实际: %v", err)
 	}
 }
+
+func TestLoadWebDirs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	content := "mysql:\n  dsn: test\njwt:\n  secret: test-secret-1234567890\nserver:\n  mode: test\n  webDirs:\n    app: dist/app\n    admin: dist/admin\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.WebDirs["app"] != "dist/app" || cfg.Server.WebDirs["admin"] != "dist/admin" {
+		t.Fatalf("webDirs 解析错误: %v", cfg.Server.WebDirs)
+	}
+}

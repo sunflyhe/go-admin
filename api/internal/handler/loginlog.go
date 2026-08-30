@@ -17,7 +17,7 @@ func NewLoginLogHandler(svc *service.LoginLogService) *LoginLogHandler {
 	return &LoginLogHandler{Svc: svc}
 }
 
-// List GET /api/v1/login-logs
+// List GET /admin-api/login-logs
 func (h *LoginLogHandler) List(c *gin.Context) {
 	var query LoginLogListQuery
 	if err := c.ShouldBindQuery(&query); err != nil {

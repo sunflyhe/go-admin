@@ -8,7 +8,7 @@ type FileGroupSaveRequest struct {
 	Name string `json:"name" binding:"required,max=64"`
 }
 
-// FileGroupListQuery GET /api/v1/file-groups 查询参数。
+// FileGroupListQuery GET /admin-api/file-groups 查询参数。
 // category 是文件中心的最高层导航,左栏各组计数按它统计;取值集合与文件列表完全一致,
 // 故不在这里加 oneof 校验,统一由 Service 裁决,避免两处枚举漂移。
 type FileGroupListQuery struct {

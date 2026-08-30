@@ -25,7 +25,7 @@ func NewArticleHandler(svc *service.ArticleService, fileSvc *service.FileService
 	return &ArticleHandler{Svc: svc, FileSvc: fileSvc, PublicURLPrefix: publicURLPrefix, MaxSizeMB: maxSizeMB}
 }
 
-// List GET /api/v1/articles
+// List GET /admin-api/articles
 func (h *ArticleHandler) List(c *gin.Context) {
 	var query ArticleListQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -40,7 +40,7 @@ func (h *ArticleHandler) List(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Get GET /api/v1/articles/:id — 详情含正文,编辑弹窗据此回填富文本。
+// Get GET /admin-api/articles/:id — 详情含正文,编辑弹窗据此回填富文本。
 func (h *ArticleHandler) Get(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -55,7 +55,7 @@ func (h *ArticleHandler) Get(c *gin.Context) {
 	resp.OK(c, detail)
 }
 
-// Create POST /api/v1/articles
+// Create POST /admin-api/articles
 func (h *ArticleHandler) Create(c *gin.Context) {
 	actor, ok := middlewareActor(c)
 	if !ok {
@@ -75,7 +75,7 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 	resp.Created(c, article)
 }
 
-// Update PUT /api/v1/articles/:id
+// Update PUT /admin-api/articles/:id
 func (h *ArticleHandler) Update(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -94,7 +94,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Delete DELETE /api/v1/articles/:id
+// Delete DELETE /admin-api/articles/:id
 func (h *ArticleHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -108,7 +108,7 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// UploadImage POST /api/v1/article-images
+// UploadImage POST /admin-api/article-images
 // 富文本配图上传:复用文件上传的白名单、大小与真实 MIME 校验,
 // 但强制 is_public=true —— 正文 <img> 无法携带 Authorization,配图必须公开可访问。
 func (h *ArticleHandler) UploadImage(c *gin.Context) {

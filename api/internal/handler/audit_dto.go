@@ -6,7 +6,7 @@ import (
 	"github.com/hesunfly/hesunfly-admin-go/api/pkg/page"
 )
 
-// AuditListQuery GET /api/v1/audit-logs 查询参数。
+// AuditListQuery GET /admin-api/audit-logs 查询参数。
 type AuditListQuery struct {
 	page.Query
 	Username  string `form:"username"`

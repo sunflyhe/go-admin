@@ -17,7 +17,7 @@ func NewAuditHandler(svc *service.AuditService) *AuditHandler {
 	return &AuditHandler{Svc: svc}
 }
 
-// List GET /api/v1/audit-logs
+// List GET /admin-api/audit-logs
 func (h *AuditHandler) List(c *gin.Context) {
 	var query AuditListQuery
 	if err := c.ShouldBindQuery(&query); err != nil {

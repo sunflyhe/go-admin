@@ -26,7 +26,7 @@ func NewFileHandler(svc *service.FileService, publicURLPrefix string, maxSizeMB 
 	return &FileHandler{Svc: svc, PublicURLPrefix: publicURLPrefix, MaxSizeMB: maxSizeMB}
 }
 
-// Upload POST /api/v1/files
+// Upload POST /admin-api/files
 func (h *FileHandler) Upload(c *gin.Context) {
 	actor, ok := middlewareActor(c)
 	if !ok {
@@ -86,7 +86,7 @@ func (h *FileHandler) PublicDownload(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, entry.Size, entry.MIME, f, nil)
 }
 
-// List GET /api/v1/files
+// List GET /admin-api/files
 func (h *FileHandler) List(c *gin.Context) {
 	var query FileListQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -101,7 +101,7 @@ func (h *FileHandler) List(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Delete DELETE /api/v1/files/:id
+// Delete DELETE /admin-api/files/:id
 func (h *FileHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -115,7 +115,7 @@ func (h *FileHandler) Delete(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Move PUT /api/v1/files/group
+// Move PUT /admin-api/files/group
 // 批量把选中文件移动到目标分组,groupId=0 表示"未分组"。
 func (h *FileHandler) Move(c *gin.Context) {
 	var req FileMoveRequest
@@ -130,7 +130,7 @@ func (h *FileHandler) Move(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// BatchDelete POST /api/v1/files/batch-delete
+// BatchDelete POST /admin-api/files/batch-delete
 // 用 POST 承载批量删除:带请求体的 DELETE 在网关与访问日志里都不友好。
 func (h *FileHandler) BatchDelete(c *gin.Context) {
 	var req FileBatchDeleteRequest
@@ -159,7 +159,7 @@ func parseGroupIDForm(c *gin.Context) (int64, error) {
 	return groupID, nil
 }
 
-// Download GET /api/v1/files/:id/download
+// Download GET /admin-api/files/:id/download
 // 公开文件 302 到公开前缀;私有文件经本接口鉴权后流式输出。
 func (h *FileHandler) Download(c *gin.Context) {
 	ctx := c.Request.Context()

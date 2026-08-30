@@ -15,17 +15,17 @@ func registerAdminRoutes(w *routeWires) {
 	// 只作用于登录者自身,入参里没有 id,因此与 logout/me 一样只过 Require()。
 	// 头像复用文件存储但不要求 system:file:upload,否则普通用户无法设置自己的头像。
 	authHandler := handler.NewAuthHandler(service.NewAuthService(w.DB, w.JWT, w.Logger), w.profileSvc)
-	w.api.POST("/auth/login", authHandler.Login)
-	w.api.POST("/auth/refresh", authHandler.Refresh)
-	w.authed.POST("/auth/logout", authHandler.Logout)
-	w.authed.GET("/auth/me", authHandler.Me)
-	w.authed.PUT("/auth/profile", authHandler.UpdateProfile)
-	w.authed.POST("/auth/password", authHandler.ChangePassword)
-	w.authed.POST("/auth/avatar", authHandler.UploadAvatar)
+	w.adminApi.POST("/auth/login", authHandler.Login)
+	w.adminApi.POST("/auth/refresh", authHandler.Refresh)
+	w.adminAuthed.POST("/auth/logout", authHandler.Logout)
+	w.adminAuthed.GET("/auth/me", authHandler.Me)
+	w.adminAuthed.PUT("/auth/profile", authHandler.UpdateProfile)
+	w.adminAuthed.POST("/auth/password", authHandler.ChangePassword)
+	w.adminAuthed.POST("/auth/avatar", authHandler.UploadAvatar)
 
 	// ---- 用户管理
 	userHandler := handler.NewUserHandler(service.NewUserService(w.DB), w.profileSvc)
-	ug := w.authed.Group("/users")
+	ug := w.adminAuthed.Group("/users")
 	{
 		ug.GET("", w.authn.RequirePerm("system:user:list"), userHandler.List)
 		ug.GET("/export", w.authn.RequirePerm("system:user:export"), userHandler.Export)
@@ -40,7 +40,7 @@ func registerAdminRoutes(w *routeWires) {
 
 	// ---- 角色管理
 	roleHandler := handler.NewRoleHandler(service.NewRoleService(w.DB))
-	rg := w.authed.Group("/roles")
+	rg := w.adminAuthed.Group("/roles")
 	{
 		rg.GET("", w.authn.RequirePerm("system:role:list"), roleHandler.List)
 		rg.POST("", w.authn.RequirePerm("system:role:create"), roleHandler.Create)
@@ -52,7 +52,7 @@ func registerAdminRoutes(w *routeWires) {
 
 	// ---- 菜单管理
 	menuHandler := handler.NewMenuHandler(service.NewMenuService(w.DB))
-	mg := w.authed.Group("/menus")
+	mg := w.adminAuthed.Group("/menus")
 	{
 		mg.GET("", w.authn.RequirePerm("system:menu:list"), menuHandler.List)
 		mg.GET("/tree", w.authn.RequirePerm("system:menu:list"), menuHandler.Tree)
@@ -63,10 +63,10 @@ func registerAdminRoutes(w *routeWires) {
 
 	// ---- 日志:审计与登录日志,只读,各自独立权限码
 	auditHandler := handler.NewAuditHandler(service.NewAuditService(w.DB))
-	w.authed.GET("/audit-logs", w.authn.RequirePerm("system:auditlog:list"), auditHandler.List)
+	w.adminAuthed.GET("/audit-logs", w.authn.RequirePerm("system:auditlog:list"), auditHandler.List)
 
 	llHandler := handler.NewLoginLogHandler(service.NewLoginLogService(w.DB))
-	w.authed.GET("/login-logs", w.authn.RequirePerm("system:loginlog:list"), llHandler.List)
+	w.adminAuthed.GET("/login-logs", w.authn.RequirePerm("system:loginlog:list"), llHandler.List)
 
 	// ---- 文件中心:公开文件也通过数据库 is_public 标记校验后再输出。
 	// 不能把整个上传目录直接静态暴露,否则私有文件可按 store_path 绕过鉴权访问。
@@ -76,7 +76,7 @@ func registerAdminRoutes(w *routeWires) {
 		w.engine.GET(w.Cfg.Upload.PublicURL+"/*storePath", fileHandler.PublicDownload)
 	}
 
-	fg := w.authed.Group("/files")
+	fg := w.adminAuthed.Group("/files")
 	{
 		fg.POST("", w.authn.RequirePerm("system:file:upload"), fileHandler.Upload)
 		fg.GET("", w.authn.RequirePerm("system:file:list"), fileHandler.List)
@@ -86,7 +86,7 @@ func registerAdminRoutes(w *routeWires) {
 		fg.PUT("/group", w.authn.RequirePerm("system:file:move"), fileHandler.Move)
 		fg.POST("/batch-delete", w.authn.RequirePerm("system:file:delete"), fileHandler.BatchDelete)
 	}
-	fgh := w.authed.Group("/file-groups")
+	fgh := w.adminAuthed.Group("/file-groups")
 	{
 		fgh.GET("", w.authn.RequirePerm("system:file:list"), fileGroupHandler.List)
 		fgh.POST("", w.authn.RequirePerm("system:filegroup:create"), fileGroupHandler.Create)
@@ -96,7 +96,7 @@ func registerAdminRoutes(w *routeWires) {
 
 	// ---- 系统参数
 	configHandler := handler.NewConfigHandler(service.NewConfigService(w.DB))
-	cg := w.authed.Group("/configs")
+	cg := w.adminAuthed.Group("/configs")
 	{
 		cg.GET("", w.authn.RequirePerm("system:config:list"), configHandler.List)
 		cg.POST("", w.authn.RequirePerm("system:config:create"), configHandler.Create)
@@ -107,7 +107,7 @@ func registerAdminRoutes(w *routeWires) {
 	// ---- 字典:类型与子项维护走 system:dict:*;
 	// 业务侧按键读取 /dict-data 仅需登录(任意登录用户都可能用到字典数据)。
 	dictTypeHandler := handler.NewDictTypeHandler(service.NewDictTypeService(w.DB))
-	dt := w.authed.Group("/dict-types")
+	dt := w.adminAuthed.Group("/dict-types")
 	{
 		dt.GET("", w.authn.RequirePerm("system:dict:list"), dictTypeHandler.List)
 		dt.POST("", w.authn.RequirePerm("system:dict:create"), dictTypeHandler.Create)
@@ -116,16 +116,16 @@ func registerAdminRoutes(w *routeWires) {
 		dt.GET("/:id/items", w.authn.RequirePerm("system:dict:list"), dictTypeHandler.ListItems)
 		dt.POST("/:id/items", w.authn.RequirePerm("system:dict:create"), dictTypeHandler.CreateItem)
 	}
-	di := w.authed.Group("/dict-items")
+	di := w.adminAuthed.Group("/dict-items")
 	{
 		di.PUT("/:id", w.authn.RequirePerm("system:dict:update"), dictTypeHandler.UpdateItem)
 		di.DELETE("/:id", w.authn.RequirePerm("system:dict:delete"), dictTypeHandler.DeleteItem)
 	}
-	w.authed.GET("/dict-data", dictTypeHandler.DictData)
+	w.adminAuthed.GET("/dict-data", dictTypeHandler.DictData)
 
 	// ---- 文章资讯:分类、文章与富文本配图上传,权限码前缀 article:*
 	categoryHandler := handler.NewArticleCategoryHandler(service.NewArticleCategoryService(w.DB))
-	acg := w.authed.Group("/article-categories")
+	acg := w.adminAuthed.Group("/article-categories")
 	{
 		acg.GET("", w.authn.RequirePerm("article:category:list"), categoryHandler.List)
 		acg.POST("", w.authn.RequirePerm("article:category:create"), categoryHandler.Create)
@@ -139,7 +139,7 @@ func registerAdminRoutes(w *routeWires) {
 		w.Cfg.Upload.PublicURL,
 		w.Cfg.Upload.MaxSizeMB,
 	)
-	ag := w.authed.Group("/articles")
+	ag := w.adminAuthed.Group("/articles")
 	{
 		ag.GET("", w.authn.RequirePerm("article:article:list"), articleHandler.List)
 		ag.GET("/:id", w.authn.RequirePerm("article:article:list"), articleHandler.Get)
@@ -148,5 +148,5 @@ func registerAdminRoutes(w *routeWires) {
 		ag.DELETE("/:id", w.authn.RequirePerm("article:article:delete"), articleHandler.Delete)
 	}
 	// 配图上传独立权限码:能写文章不代表能进文件中心,反之亦然
-	w.authed.POST("/article-images", w.authn.RequirePerm("article:article:upload-image"), articleHandler.UploadImage)
+	w.adminAuthed.POST("/article-images", w.authn.RequirePerm("article:article:upload-image"), articleHandler.UploadImage)
 }

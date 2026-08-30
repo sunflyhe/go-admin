@@ -8,7 +8,7 @@ import (
 	"github.com/hesunfly/hesunfly-admin-go/api/pkg/page"
 )
 
-// FileListQuery GET /api/v1/files 查询参数。
+// FileListQuery GET /admin-api/files 查询参数。
 type FileListQuery struct {
 	page.Query
 	OriginName string `form:"originName"`
@@ -30,14 +30,14 @@ func (q *FileListQuery) toInput() *service.FileListInput {
 	}
 }
 
-// FileMoveRequest PUT /api/v1/files/group 请求体。
+// FileMoveRequest PUT /admin-api/files/group 请求体。
 // groupId 用指针 + required:0(未分组)是合法目标,binding 只要求字段出现。
 type FileMoveRequest struct {
 	IDs     []int64 `json:"ids" binding:"required,min=1,max=200,dive,gt=0"`
 	GroupID *int64  `json:"groupId" binding:"required"`
 }
 
-// FileBatchDeleteRequest POST /api/v1/files/batch-delete 请求体。
+// FileBatchDeleteRequest POST /admin-api/files/batch-delete 请求体。
 // 用 POST 而不是带请求体的 DELETE:后者在网关与访问日志里都不友好。
 type FileBatchDeleteRequest struct {
 	IDs []int64 `json:"ids" binding:"required,min=1,max=200,dive,gt=0"`
@@ -57,7 +57,7 @@ type FileUploadResponse struct {
 func toUploadResponse(r *service.FileUploadResult, publicURLPrefix string) *FileUploadResponse {
 	url := publicURLPrefix + "/" + r.StorePath
 	if !r.IsPublic {
-		url = "/api/v1/files/" + strconv.FormatInt(r.ID, 10) + "/download"
+		url = "/admin-api/files/" + strconv.FormatInt(r.ID, 10) + "/download"
 	}
 	return &FileUploadResponse{
 		ID:         r.ID,

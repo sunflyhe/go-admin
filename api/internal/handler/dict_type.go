@@ -20,7 +20,7 @@ func NewDictTypeHandler(svc *service.DictTypeService) *DictTypeHandler {
 	return &DictTypeHandler{Svc: svc}
 }
 
-// List GET /api/v1/dict-types
+// List GET /admin-api/dict-types
 func (h *DictTypeHandler) List(c *gin.Context) {
 	items, err := h.Svc.List(c.Request.Context())
 	if err != nil {
@@ -30,7 +30,7 @@ func (h *DictTypeHandler) List(c *gin.Context) {
 	resp.OK(c, items)
 }
 
-// Create POST /api/v1/dict-types
+// Create POST /admin-api/dict-types
 func (h *DictTypeHandler) Create(c *gin.Context) {
 	var req DictTypeSaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -45,7 +45,7 @@ func (h *DictTypeHandler) Create(c *gin.Context) {
 	resp.Created(c, dictType)
 }
 
-// Update PUT /api/v1/dict-types/:id
+// Update PUT /admin-api/dict-types/:id
 func (h *DictTypeHandler) Update(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -64,7 +64,7 @@ func (h *DictTypeHandler) Update(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Delete DELETE /api/v1/dict-types/:id
+// Delete DELETE /admin-api/dict-types/:id
 func (h *DictTypeHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -78,7 +78,7 @@ func (h *DictTypeHandler) Delete(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// ListItems GET /api/v1/dict-types/:id/items
+// ListItems GET /admin-api/dict-types/:id/items
 func (h *DictTypeHandler) ListItems(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -93,7 +93,7 @@ func (h *DictTypeHandler) ListItems(c *gin.Context) {
 	resp.OK(c, items)
 }
 
-// CreateItem POST /api/v1/dict-types/:id/items
+// CreateItem POST /admin-api/dict-types/:id/items
 func (h *DictTypeHandler) CreateItem(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -113,7 +113,7 @@ func (h *DictTypeHandler) CreateItem(c *gin.Context) {
 	resp.Created(c, item)
 }
 
-// UpdateItem PUT /api/v1/dict-items/:id
+// UpdateItem PUT /admin-api/dict-items/:id
 func (h *DictTypeHandler) UpdateItem(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -132,7 +132,7 @@ func (h *DictTypeHandler) UpdateItem(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// DeleteItem DELETE /api/v1/dict-items/:id
+// DeleteItem DELETE /admin-api/dict-items/:id
 func (h *DictTypeHandler) DeleteItem(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -146,7 +146,7 @@ func (h *DictTypeHandler) DeleteItem(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// DictData GET /api/v1/dict-data?key=xxx
+// DictData GET /admin-api/dict-data?key=xxx
 // 业务模块按类型键取启用子项;只需登录,不需要字典管理权限。
 func (h *DictTypeHandler) DictData(c *gin.Context) {
 	options, err := h.Svc.EnabledByKey(c.Request.Context(), c.Query("key"))

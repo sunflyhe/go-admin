@@ -31,7 +31,8 @@ export const staticRoutes: RouteRecordRaw[] = [
 ]
 
 export const router = createRouter({
-  history: createWebHistory(),
+  // base 跟随 vite 的 base(/admin/),开发与生产同构
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: staticRoutes
 })
 

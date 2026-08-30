@@ -5,7 +5,7 @@ import (
 	"github.com/hesunfly/hesunfly-admin-go/api/internal/service"
 )
 
-// DictTypeSaveRequest POST/PUT /api/v1/dict-types 请求体。
+// DictTypeSaveRequest POST/PUT /admin-api/dict-types 请求体。
 type DictTypeSaveRequest struct {
 	Name   string `json:"name" binding:"required,max=64"`
 	Key    string `json:"key" binding:"required,max=64"`
@@ -16,7 +16,7 @@ func (r *DictTypeSaveRequest) toInput() service.DictTypeSaveInput {
 	return service.DictTypeSaveInput{Name: r.Name, Key: r.Key, Remark: r.Remark}
 }
 
-// DictItemSaveRequest POST /api/v1/dict-types/:id/items 与 PUT /api/v1/dict-items/:id 请求体。
+// DictItemSaveRequest POST /admin-api/dict-types/:id/items 与 PUT /admin-api/dict-items/:id 请求体。
 // status 取值合法性由 Service 裁决(binding 只挡明显乱传),0 视为未传,默认启用;
 // tagType 对应前端 el-tag 配色,合法值由 Service 校验。
 type DictItemSaveRequest struct {

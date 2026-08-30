@@ -18,7 +18,7 @@ func NewMenuHandler(svc *service.MenuService) *MenuHandler {
 	return &MenuHandler{Svc: svc}
 }
 
-// Tree GET /api/v1/menus/tree
+// Tree GET /admin-api/menus/tree
 func (h *MenuHandler) Tree(c *gin.Context) {
 	result, err := h.Svc.Tree(c.Request.Context())
 	if err != nil {
@@ -28,7 +28,7 @@ func (h *MenuHandler) Tree(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// List GET /api/v1/menus
+// List GET /admin-api/menus
 func (h *MenuHandler) List(c *gin.Context) {
 	result, err := h.Svc.ListAll(c.Request.Context())
 	if err != nil {
@@ -38,7 +38,7 @@ func (h *MenuHandler) List(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Create POST /api/v1/menus
+// Create POST /admin-api/menus
 func (h *MenuHandler) Create(c *gin.Context) {
 	var req MenuSaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -53,7 +53,7 @@ func (h *MenuHandler) Create(c *gin.Context) {
 	resp.Created(c, result)
 }
 
-// Update PUT /api/v1/menus/:id
+// Update PUT /admin-api/menus/:id
 func (h *MenuHandler) Update(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -73,7 +73,7 @@ func (h *MenuHandler) Update(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Delete DELETE /api/v1/menus/:id
+// Delete DELETE /admin-api/menus/:id
 func (h *MenuHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {

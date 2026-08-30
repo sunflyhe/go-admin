@@ -19,7 +19,7 @@ func NewConfigHandler(svc *service.ConfigService) *ConfigHandler {
 	return &ConfigHandler{Svc: svc}
 }
 
-// List GET /api/v1/configs
+// List GET /admin-api/configs
 func (h *ConfigHandler) List(c *gin.Context) {
 	var query ConfigListQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -34,7 +34,7 @@ func (h *ConfigHandler) List(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Create POST /api/v1/configs
+// Create POST /admin-api/configs
 func (h *ConfigHandler) Create(c *gin.Context) {
 	var req ConfigSaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -49,7 +49,7 @@ func (h *ConfigHandler) Create(c *gin.Context) {
 	resp.Created(c, cfg)
 }
 
-// Update PUT /api/v1/configs/:id
+// Update PUT /admin-api/configs/:id
 func (h *ConfigHandler) Update(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -68,7 +68,7 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Delete DELETE /api/v1/configs/:id
+// Delete DELETE /admin-api/configs/:id
 func (h *ConfigHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {

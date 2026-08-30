@@ -1,5 +1,6 @@
-// 路由装配入口:引擎与全局中间件、健康检查、SPA 静态托管在此完成,
+// 路由装配入口:引擎与全局中间件、健康检查、多端 SPA 静态托管在此完成,
 // 具体路由按端拆分到同包的 admin.go / api.go(新端再加新文件)。
+// 端前缀约定:app 端接口 /api/*,admin 端接口 /admin-api/*,文件 /files/*。
 package router
 
 import (
@@ -32,12 +33,13 @@ type Deps struct {
 // routeWires 路由注册函数共享的已装配依赖,避免各注册函数重复构造或超长参数列表。
 type routeWires struct {
 	*Deps
-	engine     *gin.Engine
-	authn      *middleware.Authn
-	api        *gin.RouterGroup // /api/v1,含审计记录中间件
-	authed     *gin.RouterGroup // api + Require():登录后可访问
-	fileSvc    *service.FileService
-	profileSvc *service.ProfileService
+	engine      *gin.Engine
+	authn       *middleware.Authn
+	appApi      *gin.RouterGroup // /api:app 端与开放接口,含审计记录中间件
+	adminApi    *gin.RouterGroup // /admin-api:admin 端,含审计记录中间件
+	adminAuthed *gin.RouterGroup // adminApi + Require():登录后可访问
+	fileSvc     *service.FileService
+	profileSvc  *service.ProfileService
 }
 
 // New 构建 gin 引擎。
@@ -55,8 +57,8 @@ func New(d *Deps) *gin.Engine {
 
 	registerHealthRoutes(r, d.DB)
 
-	// 前端静态托管(可选):优先 API,其次静态资源,未命中回退 index.html
-	mountWebDir(r, d.Cfg.Server.WebDir)
+	// 多端 SPA 静态托管(可选):app 挂根 /,admin 挂 /admin/
+	mountWebDirs(r, d.Cfg.Server.WebDirs)
 
 	// 本地存储与文件服务:文件接口与个人中心头像上传共用同一实例,避免两处初始化漂移。
 	storage, err := service.NewLocal(d.Cfg.Upload.Dir)
@@ -66,20 +68,25 @@ func New(d *Deps) *gin.Engine {
 	}
 	fileSvc := service.NewFileService(d.DB, storage, d.Cfg.Upload.MaxSizeMB)
 
-	api := r.Group("/api/v1")
-	api.Use(d.Recorder.Middleware())
 	authn := &middleware.Authn{DB: d.DB, JWT: d.JWT}
-	authed := api.Group("")
-	authed.Use(authn.Require())
+
+	appApi := r.Group("/api")
+	appApi.Use(d.Recorder.Middleware())
+
+	adminApi := r.Group("/admin-api")
+	adminApi.Use(d.Recorder.Middleware())
+	adminAuthed := adminApi.Group("")
+	adminAuthed.Use(authn.Require())
 
 	w := &routeWires{
-		Deps:       d,
-		engine:     r,
-		authn:      authn,
-		api:        api,
-		authed:     authed,
-		fileSvc:    fileSvc,
-		profileSvc: service.NewProfileService(d.DB, fileSvc, d.Cfg.Upload.PublicURL),
+		Deps:        d,
+		engine:      r,
+		authn:       authn,
+		appApi:      appApi,
+		adminApi:    adminApi,
+		adminAuthed: adminAuthed,
+		fileSvc:     fileSvc,
+		profileSvc:  service.NewProfileService(d.DB, fileSvc, d.Cfg.Upload.PublicURL),
 	}
 
 	registerAdminRoutes(w)
@@ -105,30 +112,76 @@ func registerHealthRoutes(r *gin.Engine, db *gorm.DB) {
 	})
 }
 
-// mountWebDir 可选的 SPA 静态托管:未匹配 API 与真实文件时回退 index.html(history 路由刷新)。
-func mountWebDir(r *gin.Engine, webDir string) {
-	if webDir == "" {
+// apiPrefixes 由后端自身服务的路径前缀:SPA 回退不得吞掉这些前缀下的 404。
+var apiPrefixes = []string{"/api/", "/admin-api/", "/files/"}
+
+// mountWebDirs 多端 SPA 静态托管:
+//   - "app" 目录挂根路径 /:未命中 API 与真实文件时回退 app 的 index.html(history 路由刷新)
+//   - "admin" 目录挂 /admin/:未命中真实文件时回退 admin 自己的 index.html
+//
+// 目录不存在时静默跳过该端,便于只部署其中一个前端。
+func mountWebDirs(r *gin.Engine, dirs map[string]string) {
+	appDir := resolveDir(dirs["app"])
+	adminDir := resolveDir(dirs["admin"])
+
+	if appDir != "" {
+		r.NoRoute(func(c *gin.Context) {
+			for _, prefix := range apiPrefixes {
+				if strings.HasPrefix(c.Request.URL.Path, prefix) {
+					c.JSON(http.StatusNotFound, gin.H{"code": errs.CodeNotFound, "message": "接口不存在", "data": nil})
+					return
+				}
+			}
+			// /admin 段属于 admin 端页面;app 的根回退不得接管它(即使 admin 端未托管也保持 404 语义)
+			if c.Request.URL.Path == "/admin" || strings.HasPrefix(c.Request.URL.Path, "/admin/") {
+				c.JSON(http.StatusNotFound, gin.H{"code": errs.CodeNotFound, "message": "页面不存在", "data": nil})
+				return
+			}
+			serveSPA(c, appDir)
+		})
+	}
+
+	if adminDir != "" {
+		// gin 的 /*path 通配即覆盖 /admin/ 本身;/admin(无斜杠)由 gin 自动 301 到 /admin/
+		r.GET("/admin/*path", func(c *gin.Context) {
+			rel := c.Param("path")
+			if rel == "/" || rel == "" {
+				serveSPA(c, adminDir)
+				return
+			}
+			full := filepath.Join(adminDir, filepath.Clean(rel))
+			if info, err := os.Stat(full); err == nil && !info.IsDir() {
+				c.File(full)
+				return
+			}
+			serveSPA(c, adminDir)
+		})
+	}
+}
+
+// serveSPA 输出目录内与请求路径匹配的静态文件,未命中回退该目录的 index.html。
+func serveSPA(c *gin.Context, dir string) {
+	full := filepath.Join(dir, filepath.Clean("/"+c.Request.URL.Path))
+	if info, err := os.Stat(full); err == nil && !info.IsDir() {
+		c.File(full)
 		return
 	}
-	abs, err := filepath.Abs(webDir)
+	c.File(filepath.Join(dir, "index.html"))
+}
+
+// resolveDir 返回存在的目录绝对路径,空串或不存在返回空串。
+func resolveDir(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return
+		return ""
 	}
-	if _, err := os.Stat(abs); err != nil {
-		return
+	if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+		return ""
 	}
-	r.NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/api") {
-			c.JSON(http.StatusNotFound, gin.H{"code": errs.CodeNotFound, "message": "接口不存在", "data": nil})
-			return
-		}
-		full := filepath.Join(abs, filepath.Clean("/"+c.Request.URL.Path))
-		if info, err := os.Stat(full); err == nil && !info.IsDir() {
-			c.File(full)
-			return
-		}
-		c.File(filepath.Join(abs, "index.html"))
-	})
+	return abs
 }
 
 // handlerForFile 公开下载与文件管理共用一个 handler 实例。

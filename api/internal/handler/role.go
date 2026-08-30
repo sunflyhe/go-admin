@@ -18,7 +18,7 @@ func NewRoleHandler(svc *service.RoleService) *RoleHandler {
 	return &RoleHandler{Svc: svc}
 }
 
-// List GET /api/v1/roles
+// List GET /admin-api/roles
 func (h *RoleHandler) List(c *gin.Context) {
 	var query RoleListQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -33,7 +33,7 @@ func (h *RoleHandler) List(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Create POST /api/v1/roles
+// Create POST /admin-api/roles
 func (h *RoleHandler) Create(c *gin.Context) {
 	var req RoleCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -48,7 +48,7 @@ func (h *RoleHandler) Create(c *gin.Context) {
 	resp.Created(c, result)
 }
 
-// Update PUT /api/v1/roles/:id
+// Update PUT /admin-api/roles/:id
 func (h *RoleHandler) Update(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -68,7 +68,7 @@ func (h *RoleHandler) Update(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Delete DELETE /api/v1/roles/:id
+// Delete DELETE /admin-api/roles/:id
 func (h *RoleHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -82,7 +82,7 @@ func (h *RoleHandler) Delete(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Menus GET /api/v1/roles/:id/menus
+// Menus GET /admin-api/roles/:id/menus
 func (h *RoleHandler) Menus(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -97,7 +97,7 @@ func (h *RoleHandler) Menus(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// AssignMenus PUT /api/v1/roles/:id/menus
+// AssignMenus PUT /admin-api/roles/:id/menus
 func (h *RoleHandler) AssignMenus(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {

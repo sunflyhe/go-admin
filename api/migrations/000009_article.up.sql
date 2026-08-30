@@ -2,7 +2,7 @@
 -- 说明:
 --   1. 菜单沿用固定主键 + INSERT IGNORE;200 段为新一级目录「文章资讯」预留;
 --   2. 正文 content 用 MEDIUMTEXT 存富文本 HTML,列表接口不回传,详情接口才返回;
---   3. 文章配图走 POST /api/v1/article-images(权限码 article:article:upload-image),
+--   3. 文章配图走 POST /admin-api/article-images(权限码 article:article:upload-image),
 --      复用文件上传白名单与真实 MIME 校验,且强制 is_public=true ——
 --      正文 <img> 无法携带 Authorization,图片必须公开可访问;
 --   4. 新模块对既有角色默认不可见,由管理员按需在「角色管理」里分配;

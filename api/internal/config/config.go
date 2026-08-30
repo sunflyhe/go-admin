@@ -17,8 +17,11 @@ type Server struct {
 	TrustedProxies []string `yaml:"trustedProxies"`
 	// Gin 运行模式:debug(开发,带调试输出)/ release(生产,静默)/ test(测试,静默)。
 	// 仅影响 Gin 自身日志,不影响业务逻辑;生产环境必须用 release。
-	Mode   string `yaml:"mode"`   // debug | release | test
-	WebDir string `yaml:"webDir"` // 前端静态文件目录(可选,设置后由后端托管 web/admin/dist)
+	Mode string `yaml:"mode"` // debug | release | test
+	// 多端 SPA 静态托管(可选):键为端名,值为该端构建产物目录。
+	// app 挂根路径 /,admin 挂 /admin/;留空表示不托管,由 Nginx 等外部静态服务负责。
+	// map 字段不做环境变量覆盖,请直接在配置文件中填写。
+	WebDirs map[string]string `yaml:"webDirs"`
 }
 
 type MySQL struct {
@@ -95,7 +98,7 @@ func applyEnv(cfg *Config) {
 	}
 	str("ADMIN_SERVER_ADDR", &cfg.Server.Addr)
 	str("ADMIN_SERVER_MODE", &cfg.Server.Mode)
-	str("ADMIN_SERVER_WEB_DIR", &cfg.Server.WebDir)
+	// server.webDirs 为 map,不支持环境变量覆盖,请在配置文件中直接填写。
 	if v, ok := os.LookupEnv("ADMIN_SERVER_TRUSTED_PROXIES"); ok {
 		cfg.Server.TrustedProxies = splitCSV(v)
 	}

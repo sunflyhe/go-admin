@@ -71,11 +71,11 @@ cd api && air     # 配置见 api/.air.toml,纯开发工具,不进部署链
 cd web/admin
 nvm use                 # 使用仓库锁定的 Node 24.20.0
 npm install
-npm run dev        # 开发模式,代理到 localhost:8080
-npm run build      # 生产构建,产物在 web/admin/dist
+npm run dev        # 开发模式,访问 http://localhost:5173/admin/,/admin-api 代理到 localhost:8080
+npm run build      # 生产构建,产物在 web/admin/dist(路由基座 /admin/)
 ```
 
-开发时可由 API 托管 `web/admin/dist`；生产交付建议使用下方的 Docker Compose，由 Nginx 单独托管前端静态文件并反代 API。
+管理端接口统一走 `/admin-api/*`,应用端(app)接口走 `/api/*`;开发时可由 API 通过 `server.webDirs` 托管两端静态产物(见 `configs/config.example.yaml`),生产交付建议使用下方的 Docker Compose，由 Nginx 单独托管前端静态文件并反代 API。
 前端统一使用 Node 24.20.0（最新 LTS，见 `web/admin/.nvmrc`）；CI 与 Web 构建镜像使用相同版本。`npm run build` 会检查入口 JS、最大 CSS 与富文本懒加载包的体积预算，超标将失败。
 
 ## Docker Compose 部署
@@ -86,7 +86,7 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
 
-部署完成后访问 `http://localhost:8080`。Web 容器负责 SPA 路由与静态资源，`/api`、`/files` 由 Nginx 转发到 API；MySQL 数据与上传文件分别使用命名卷持久化。
+部署完成后:应用端(app)访问 `http://localhost:8080/`，管理端(admin)访问 `http://localhost:8080/admin/`。Nginx 负责两端 SPA 路由与静态资源，`/api`(app 接口)、`/admin-api`(admin 接口)、`/files` 转发到 API；MySQL 数据与上传文件分别使用命名卷持久化。
 
 API 默认不信任 `X-Forwarded-For` 等转发头；此 Compose 将 Web 容器固定为内部地址 `172.30.0.10`，并仅信任该地址。若改用自己的反向代理部署，请在 API 配置的 `server.trustedProxies`（或 `ADMIN_SERVER_TRUSTED_PROXIES`，逗号分隔）中填写实际代理 IP/CIDR，切勿配置为全网段。
 

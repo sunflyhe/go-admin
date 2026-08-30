@@ -31,7 +31,7 @@ api/
 - 不创建另一套 `app/`、`bin/`、`routes/`、`internal/platform/` 目录。
 - `internal/` 是项目私有实现；只有确认可脱离本项目复用的无业务组件才能放进 `pkg/`。
 - 小型新业务按 `internal/handler/<domain>.go`、`internal/service/<domain>.go`、`internal/model/` 增加代码；当单一业务明显变大时，先说明后再建立按领域分组的子目录。
-- 路由按端拆分注册文件：`internal/router/router.go` 只做引擎、全局中间件与依赖装配；每个端一个文件（`admin.go`=管理端，`api.go`=app/开放端，新增端再加新文件）。新业务模块直接在所属端文件的入口注册函数里线性追加路由段(以 `// ---- 模块名` 注释分隔)。admin 的 `RequirePerm` 权限码模型不得用于其他端；其他端的公开/轻鉴权接口在各自文件内独立设计。
+- 路由按端拆分注册文件：`internal/router/router.go` 只做引擎、全局中间件与依赖装配；每个端一个文件（`admin.go`=管理端，`api.go`=app/开放端，新增端再加新文件）。端前缀固定：app 端接口 `/api/*`，admin 端接口 `/admin-api/*`（前端页面路径 app 在 `/`、admin 在 `/admin/`），新增端需先约定前缀再注册。新业务模块直接在所属端文件的入口注册函数里线性追加路由段(以 `// ---- 模块名` 注释分隔)。admin 的 `RequirePerm` 权限码模型不得用于其他端；其他端的公开/轻鉴权接口在各自文件内独立设计。
 - 不引入泛化 Repository、DDD、CQRS、Clean Architecture 分层或依赖注入框架，除非用户明确要求。
 
 ## Handler 与 Service

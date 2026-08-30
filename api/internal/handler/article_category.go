@@ -19,7 +19,7 @@ func NewArticleCategoryHandler(svc *service.ArticleCategoryService) *ArticleCate
 	return &ArticleCategoryHandler{Svc: svc}
 }
 
-// List GET /api/v1/article-categories
+// List GET /admin-api/article-categories
 // 分类是少量枚举,不分页;附带各分类文章数,供列表展示与删除提示。
 func (h *ArticleCategoryHandler) List(c *gin.Context) {
 	items, err := h.Svc.List(c.Request.Context())
@@ -30,7 +30,7 @@ func (h *ArticleCategoryHandler) List(c *gin.Context) {
 	resp.OK(c, items)
 }
 
-// Create POST /api/v1/article-categories
+// Create POST /admin-api/article-categories
 func (h *ArticleCategoryHandler) Create(c *gin.Context) {
 	var req ArticleCategorySaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -45,7 +45,7 @@ func (h *ArticleCategoryHandler) Create(c *gin.Context) {
 	resp.Created(c, category)
 }
 
-// Update PUT /api/v1/article-categories/:id
+// Update PUT /admin-api/article-categories/:id
 func (h *ArticleCategoryHandler) Update(c *gin.Context) {
 	id, err := validate.PathID(c)
 	if err != nil {
@@ -64,7 +64,7 @@ func (h *ArticleCategoryHandler) Update(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Delete DELETE /api/v1/article-categories/:id
+// Delete DELETE /admin-api/article-categories/:id
 // 仅允许删除空分类;非空分类由 Service 返回冲突,避免删分类连带孤立文章。
 func (h *ArticleCategoryHandler) Delete(c *gin.Context) {
 	id, err := validate.PathID(c)

@@ -25,7 +25,7 @@ func NewAuthHandler(svc *service.AuthService, profile *service.ProfileService) *
 	return &AuthHandler{Svc: svc, Profile: profile}
 }
 
-// Login POST /api/v1/auth/login
+// Login POST /admin-api/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,7 +43,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Refresh POST /api/v1/auth/refresh
+// Refresh POST /admin-api/auth/refresh
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -58,7 +58,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// Logout POST /api/v1/auth/logout
+// Logout POST /admin-api/auth/logout
 func (h *AuthHandler) Logout(c *gin.Context) {
 	actor, ok := middlewareActor(c)
 	if !ok {
@@ -72,7 +72,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// Me GET /api/v1/auth/me
+// Me GET /admin-api/auth/me
 func (h *AuthHandler) Me(c *gin.Context) {
 	actor, ok := middlewareActor(c)
 	if !ok {
@@ -87,7 +87,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	resp.OK(c, result)
 }
 
-// UpdateProfile PUT /api/v1/auth/profile
+// UpdateProfile PUT /admin-api/auth/profile
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	var req ProfileUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -106,7 +106,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	resp.OK(c, nil)
 }
 
-// ChangePassword POST /api/v1/auth/password
+// ChangePassword POST /admin-api/auth/password
 // 成功后当前 access token 立即失效,前端必须清凭据并跳登录页。
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	var req ChangePasswordRequest
@@ -144,7 +144,7 @@ func parseAvatarUpload(c *gin.Context) (*service.AvatarInput, io.Closer, bool) {
 	return &service.AvatarInput{FileName: fh.Filename, Size: fh.Size, Content: src}, src, true
 }
 
-// UploadAvatar POST /api/v1/auth/avatar (multipart 字段名 file)
+// UploadAvatar POST /admin-api/auth/avatar (multipart 字段名 file)
 func (h *AuthHandler) UploadAvatar(c *gin.Context) {
 	actor, ok := middlewareActor(c)
 	if !ok {

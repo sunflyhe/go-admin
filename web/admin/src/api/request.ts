@@ -2,8 +2,9 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
-// API 基础地址:默认空(同源相对路径);前后端分域部署时在 .env 设置 VITE_API_BASE_URL 覆盖
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+// API 基础地址:admin 端固定走 /admin-api(与 app 端的 /api 区分);
+// 前后端分域部署时在 .env 设置 VITE_API_BASE_URL 覆盖
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/admin-api'
 
 const request = axios.create({ baseURL: API_BASE_URL, timeout: 30000 })
 

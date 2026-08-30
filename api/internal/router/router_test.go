@@ -8,6 +8,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,7 +79,7 @@ func loginAndGetToken(t *testing.T, r *gin.Engine, username string) (string, map
 	t.Helper()
 	body := `{"username":"` + username + `","password":"12345678"}`
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/api/v1/auth/login", strings.NewReader(body))
+	req := httptest.NewRequest("POST", "/admin-api/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -106,7 +108,7 @@ func doReq(r *gin.Engine, method, path, token string) *httptest.ResponseRecorder
 func TestSuperAdminCanListUsers(t *testing.T) {
 	r := newRouterEnv(t)
 	token, _ := loginAndGetToken(t, r, "admin")
-	w := doReq(r, "GET", "/api/v1/users", token)
+	w := doReq(r, "GET", "/admin-api/users", token)
 	if w.Code != http.StatusOK {
 		t.Fatalf("超管应可访问用户列表: %d %s", w.Code, w.Body.String())
 	}
@@ -115,12 +117,12 @@ func TestSuperAdminCanListUsers(t *testing.T) {
 func TestAuditorForbiddenOnUsers(t *testing.T) {
 	r := newRouterEnv(t)
 	token, _ := loginAndGetToken(t, r, "auditor")
-	w := doReq(r, "GET", "/api/v1/users", token)
+	w := doReq(r, "GET", "/admin-api/users", token)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("审计员访问用户列表应返回 403: %d %s", w.Code, w.Body.String())
 	}
 	// 但可以访问登录日志
-	w = doReq(r, "GET", "/api/v1/login-logs", token)
+	w = doReq(r, "GET", "/admin-api/login-logs", token)
 	if w.Code != http.StatusOK {
 		t.Fatalf("审计员应可访问登录日志: %d %s", w.Code, w.Body.String())
 	}
@@ -128,7 +130,7 @@ func TestAuditorForbiddenOnUsers(t *testing.T) {
 
 func TestUnauthenticatedRejected(t *testing.T) {
 	r := newRouterEnv(t)
-	w := doReq(r, "GET", "/api/v1/users", "")
+	w := doReq(r, "GET", "/admin-api/users", "")
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("未登录应返回 401: %d", w.Code)
 	}
@@ -139,13 +141,13 @@ func TestUnauthenticatedRejected(t *testing.T) {
 func TestConfigPermission(t *testing.T) {
 	r := newRouterEnv(t)
 	auditorToken, _ := loginAndGetToken(t, r, "auditor")
-	w := doReq(r, "GET", "/api/v1/configs", auditorToken)
+	w := doReq(r, "GET", "/admin-api/configs", auditorToken)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("审计员访问参数列表应返回 403: %d %s", w.Code, w.Body.String())
 	}
 
 	adminToken, _ := loginAndGetToken(t, r, "admin")
-	w = doJSON(t, r, "POST", "/api/v1/configs", adminToken, `{"name":"站点名称","key":"site.name","value":"Hesunfly Admin"}`)
+	w = doJSON(t, r, "POST", "/admin-api/configs", adminToken, `{"name":"站点名称","key":"site.name","value":"Hesunfly Admin"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("超管创建参数应 201: %d %s", w.Code, w.Body.String())
 	}
@@ -153,15 +155,15 @@ func TestConfigPermission(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 	id := int(created["data"].(map[string]interface{})["id"].(float64))
 
-	w = doJSON(t, r, "PUT", "/api/v1/configs/"+strconv.Itoa(id), adminToken, `{"name":"站点名称","key":"site.name","value":"改名后的值"}`)
+	w = doJSON(t, r, "PUT", "/admin-api/configs/"+strconv.Itoa(id), adminToken, `{"name":"站点名称","key":"site.name","value":"改名后的值"}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("超管更新参数应 200: %d %s", w.Code, w.Body.String())
 	}
-	w = doReq(r, "GET", "/api/v1/configs?keyword=site.name", adminToken)
+	w = doReq(r, "GET", "/admin-api/configs?keyword=site.name", adminToken)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "改名后的值") {
 		t.Fatalf("列表应能搜到更新后的参数: %d %s", w.Code, w.Body.String())
 	}
-	w = doReq(r, "DELETE", "/api/v1/configs/"+strconv.Itoa(id), adminToken)
+	w = doReq(r, "DELETE", "/admin-api/configs/"+strconv.Itoa(id), adminToken)
 	if w.Code != http.StatusOK {
 		t.Fatalf("超管删除参数应 200: %d %s", w.Code, w.Body.String())
 	}
@@ -172,13 +174,13 @@ func TestConfigPermission(t *testing.T) {
 func TestDictTypePermission(t *testing.T) {
 	r := newRouterEnv(t)
 	auditorToken, _ := loginAndGetToken(t, r, "auditor")
-	w := doReq(r, "GET", "/api/v1/dict-types", auditorToken)
+	w := doReq(r, "GET", "/admin-api/dict-types", auditorToken)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("审计员访问字典类型列表应返回 403: %d %s", w.Code, w.Body.String())
 	}
 
 	adminToken, _ := loginAndGetToken(t, r, "admin")
-	w = doJSON(t, r, "POST", "/api/v1/dict-types", adminToken, `{"name":"性别","key":"gender"}`)
+	w = doJSON(t, r, "POST", "/admin-api/dict-types", adminToken, `{"name":"性别","key":"gender"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("超管创建字典类型应 201: %d %s", w.Code, w.Body.String())
 	}
@@ -186,18 +188,18 @@ func TestDictTypePermission(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 	typeID := int(created["data"].(map[string]interface{})["id"].(float64))
 
-	w = doJSON(t, r, "POST", "/api/v1/dict-types/"+strconv.Itoa(typeID)+"/items", adminToken, `{"label":"男","value":"1"}`)
+	w = doJSON(t, r, "POST", "/admin-api/dict-types/"+strconv.Itoa(typeID)+"/items", adminToken, `{"label":"男","value":"1"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("超管创建字典项应 201: %d %s", w.Code, w.Body.String())
 	}
 
 	// 业务读取:审计员没有 system:dict:list,但 /dict-data 只要求登录
-	w = doReq(r, "GET", "/api/v1/dict-data?key=gender", auditorToken)
+	w = doReq(r, "GET", "/admin-api/dict-data?key=gender", auditorToken)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"label":"男"`) {
 		t.Fatalf("登录用户按键读取字典应 200 且含子项: %d %s", w.Code, w.Body.String())
 	}
 
-	w = doReq(r, "DELETE", "/api/v1/dict-types/"+strconv.Itoa(typeID), adminToken)
+	w = doReq(r, "DELETE", "/admin-api/dict-types/"+strconv.Itoa(typeID), adminToken)
 	if w.Code != http.StatusConflict {
 		t.Fatalf("仍有子项时删除类型应 409: %d %s", w.Code, w.Body.String())
 	}
@@ -244,13 +246,13 @@ func TestUntrustedProxyCannotSetClientIP(t *testing.T) {
 func TestFileListCategoryDoesNotBypassPermission(t *testing.T) {
 	r := newRouterEnv(t)
 	auditorToken, _ := loginAndGetToken(t, r, "auditor")
-	w := doReq(r, "GET", "/api/v1/files?category=image", auditorToken)
+	w := doReq(r, "GET", "/admin-api/files?category=image", auditorToken)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("无 system:file:list 的账号带 category 仍应 403: %d %s", w.Code, w.Body.String())
 	}
 
 	adminToken, _ := loginAndGetToken(t, r, "admin")
-	w = doReq(r, "GET", "/api/v1/files?category=image", adminToken)
+	w = doReq(r, "GET", "/admin-api/files?category=image", adminToken)
 	if w.Code != http.StatusOK {
 		t.Fatalf("超管按分类查询应 200: %d %s", w.Code, w.Body.String())
 	}
@@ -259,13 +261,13 @@ func TestFileListCategoryDoesNotBypassPermission(t *testing.T) {
 func TestFileListRejectsUnknownCategory(t *testing.T) {
 	r := newRouterEnv(t)
 	token, _ := loginAndGetToken(t, r, "admin")
-	w := doReq(r, "GET", "/api/v1/files?category=video", token)
+	w := doReq(r, "GET", "/admin-api/files?category=video", token)
 	if w.Code != http.StatusOK {
 		t.Fatalf("视频是合法标签,应 200: %d %s", w.Code, w.Body.String())
 	}
 
 	// document/archive/other 是旧的上传归类,已不是对外标签
-	w = doReq(r, "GET", "/api/v1/files?category=document", token)
+	w = doReq(r, "GET", "/admin-api/files?category=document", token)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("未知分类应 400,而不是静默返回全部: %d %s", w.Code, w.Body.String())
 	}
@@ -287,12 +289,12 @@ func doJSON(t *testing.T, r *gin.Engine, method, path, token, body string) *http
 var fileCenterEndpoints = []struct {
 	method, path, body string
 }{
-	{"PUT", "/api/v1/files/group", `{"ids":[1],"groupId":0}`},
-	{"POST", "/api/v1/files/batch-delete", `{"ids":[1]}`},
-	{"GET", "/api/v1/file-groups", ""},
-	{"POST", "/api/v1/file-groups", `{"name":"素材"}`},
-	{"PUT", "/api/v1/file-groups/1", `{"name":"素材2"}`},
-	{"DELETE", "/api/v1/file-groups/1", ""},
+	{"PUT", "/admin-api/files/group", `{"ids":[1],"groupId":0}`},
+	{"POST", "/admin-api/files/batch-delete", `{"ids":[1]}`},
+	{"GET", "/admin-api/file-groups", ""},
+	{"POST", "/admin-api/file-groups", `{"name":"素材"}`},
+	{"PUT", "/admin-api/file-groups/1", `{"name":"素材2"}`},
+	{"DELETE", "/admin-api/file-groups/1", ""},
 }
 
 // TestFileCenterEndpointsNotPermissionBypass 新增端点不得成为权限旁路:
@@ -324,7 +326,7 @@ func TestFileGroupCRUDForSuperAdmin(t *testing.T) {
 	r := newRouterEnv(t)
 	token, _ := loginAndGetToken(t, r, "admin")
 
-	w := doJSON(t, r, "POST", "/api/v1/file-groups", token, `{"name":"素材"}`)
+	w := doJSON(t, r, "POST", "/admin-api/file-groups", token, `{"name":"素材"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("创建分组应 201: %d %s", w.Code, w.Body.String())
 	}
@@ -340,10 +342,10 @@ func TestFileGroupCRUDForSuperAdmin(t *testing.T) {
 	if created.Data.ID <= 0 || created.Data.Name != "素材" {
 		t.Fatalf("响应应回传新分组: %s", w.Body.String())
 	}
-	groupPath := "/api/v1/file-groups/" + strconv.FormatInt(created.Data.ID, 10)
+	groupPath := "/admin-api/file-groups/" + strconv.FormatInt(created.Data.ID, 10)
 
 	// 同名(仅大小写不同也一样)必须冲突:Service 侧断言,这里确认错误能穿透到 HTTP 层
-	w = doJSON(t, r, "POST", "/api/v1/file-groups", token, `{"name":"素材"}`)
+	w = doJSON(t, r, "POST", "/admin-api/file-groups", token, `{"name":"素材"}`)
 	if w.Code != http.StatusConflict {
 		t.Fatalf("同名分组应 409: %d %s", w.Code, w.Body.String())
 	}
@@ -351,7 +353,7 @@ func TestFileGroupCRUDForSuperAdmin(t *testing.T) {
 	if w = doJSON(t, r, "PUT", groupPath, token, `{"name":"素材图"}`); w.Code != http.StatusOK {
 		t.Fatalf("重命名应 200: %d %s", w.Code, w.Body.String())
 	}
-	if w = doReq(r, "GET", "/api/v1/file-groups", token); w.Code != http.StatusOK {
+	if w = doReq(r, "GET", "/admin-api/file-groups", token); w.Code != http.StatusOK {
 		t.Fatalf("分组列表应 200: %d %s", w.Code, w.Body.String())
 	}
 	if !strings.Contains(w.Body.String(), "素材图") {
@@ -367,7 +369,7 @@ func TestFileGroupDeleteRejectsNonEmpty(t *testing.T) {
 	r := newRouterEnv(t)
 	token, _ := loginAndGetToken(t, r, "admin")
 
-	w := doJSON(t, r, "POST", "/api/v1/file-groups", token, `{"name":"有文件"}`)
+	w := doJSON(t, r, "POST", "/admin-api/file-groups", token, `{"name":"有文件"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("创建分组失败: %d %s", w.Code, w.Body.String())
 	}
@@ -379,7 +381,7 @@ func TestFileGroupDeleteRejectsNonEmpty(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &groupResp); err != nil || groupResp.Data.ID <= 0 {
 		t.Fatalf("未解析出分组 id: %v %s", err, w.Body.String())
 	}
-	groupPath := "/api/v1/file-groups/" + strconv.FormatInt(groupResp.Data.ID, 10)
+	groupPath := "/admin-api/file-groups/" + strconv.FormatInt(groupResp.Data.ID, 10)
 
 	if w = uploadFileToGroup(t, r, token, "in-group.png", groupResp.Data.ID); w.Code != http.StatusCreated {
 		t.Fatalf("上传应 201: %d %s", w.Code, w.Body.String())
@@ -390,16 +392,16 @@ func TestFileGroupDeleteRejectsNonEmpty(t *testing.T) {
 		t.Fatalf("非空分组删除应 409: %d %s", w.Code, w.Body.String())
 	}
 	// 文件必须还在
-	w = doReq(r, "GET", "/api/v1/files", token)
+	w = doReq(r, "GET", "/admin-api/files", token)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "in-group.png") {
 		t.Fatalf("被拒的分组删除不得影响文件: %d %s", w.Code, w.Body.String())
 	}
 	// groupId 过滤应能定位到它,且落到"未分组"的计数为 0
-	w = doReq(r, "GET", "/api/v1/files?groupId="+strconv.FormatInt(groupResp.Data.ID, 10), token)
+	w = doReq(r, "GET", "/admin-api/files?groupId="+strconv.FormatInt(groupResp.Data.ID, 10), token)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"total":1`) {
 		t.Fatalf("按分组筛选应命中 1 条: %d %s", w.Code, w.Body.String())
 	}
-	w = doReq(r, "GET", "/api/v1/files?groupId=0", token)
+	w = doReq(r, "GET", "/admin-api/files?groupId=0", token)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"total":0`) {
 		t.Fatalf("未分组应为 0 条: %d %s", w.Code, w.Body.String())
 	}
@@ -411,7 +413,7 @@ func TestFileGroupCountsFollowCategory(t *testing.T) {
 	r := newRouterEnv(t)
 	token, _ := loginAndGetToken(t, r, "admin")
 
-	w := doJSON(t, r, "POST", "/api/v1/file-groups", token, `{"name":"素材"}`)
+	w := doJSON(t, r, "POST", "/admin-api/file-groups", token, `{"name":"素材"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("创建分组失败: %d %s", w.Code, w.Body.String())
 	}
@@ -429,7 +431,7 @@ func TestFileGroupCountsFollowCategory(t *testing.T) {
 
 	totalOf := func(query string) string {
 		t.Helper()
-		w := doReq(r, "GET", "/api/v1/file-groups"+query, token)
+		w := doReq(r, "GET", "/admin-api/file-groups"+query, token)
 		if w.Code != http.StatusOK {
 			t.Fatalf("%s 应 200: %d %s", query, w.Code, w.Body.String())
 		}
@@ -442,7 +444,7 @@ func TestFileGroupCountsFollowCategory(t *testing.T) {
 		t.Fatalf("视频标签下总数应为 0: %s", got)
 	}
 	// 未知标签必须 400,而不是静默按全部统计
-	if w := doReq(r, "GET", "/api/v1/file-groups?category=document", token); w.Code != http.StatusBadRequest {
+	if w := doReq(r, "GET", "/admin-api/file-groups?category=document", token); w.Code != http.StatusBadRequest {
 		t.Fatalf("未知标签应 400: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -466,7 +468,7 @@ func uploadFileToGroup(t *testing.T, r *gin.Engine, token, filename string, grou
 	}
 	mw.Close()
 
-	req := httptest.NewRequest("POST", "/api/v1/files", &body)
+	req := httptest.NewRequest("POST", "/admin-api/files", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -478,16 +480,16 @@ func uploadFileToGroup(t *testing.T, r *gin.Engine, token, filename string, grou
 var articleEndpoints = []struct {
 	method, path, body string
 }{
-	{"GET", "/api/v1/article-categories", ""},
-	{"POST", "/api/v1/article-categories", `{"name":"公告"}`},
-	{"PUT", "/api/v1/article-categories/1", `{"name":"公告2"}`},
-	{"DELETE", "/api/v1/article-categories/1", ""},
-	{"GET", "/api/v1/articles", ""},
-	{"GET", "/api/v1/articles/1", ""},
-	{"POST", "/api/v1/articles", `{"title":"t","content":"<p>x</p>","status":1}`},
-	{"PUT", "/api/v1/articles/1", `{"title":"t","content":"<p>x</p>","status":1}`},
-	{"DELETE", "/api/v1/articles/1", ""},
-	{"POST", "/api/v1/article-images", ""},
+	{"GET", "/admin-api/article-categories", ""},
+	{"POST", "/admin-api/article-categories", `{"name":"公告"}`},
+	{"PUT", "/admin-api/article-categories/1", `{"name":"公告2"}`},
+	{"DELETE", "/admin-api/article-categories/1", ""},
+	{"GET", "/admin-api/articles", ""},
+	{"GET", "/admin-api/articles/1", ""},
+	{"POST", "/admin-api/articles", `{"title":"t","content":"<p>x</p>","status":1}`},
+	{"PUT", "/admin-api/articles/1", `{"title":"t","content":"<p>x</p>","status":1}`},
+	{"DELETE", "/admin-api/articles/1", ""},
+	{"POST", "/admin-api/article-images", ""},
 }
 
 // TestArticleEndpointsNotPermissionBypass 新增端点不得成为权限旁路:
@@ -520,7 +522,7 @@ func TestArticleModuleCRUDForSuperAdmin(t *testing.T) {
 	token, _ := loginAndGetToken(t, r, "admin")
 
 	// 建分类
-	w := doJSON(t, r, "POST", "/api/v1/article-categories", token, `{"name":"公告","sort":1}`)
+	w := doJSON(t, r, "POST", "/admin-api/article-categories", token, `{"name":"公告","sort":1}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("创建分类应 201: %d %s", w.Code, w.Body.String())
 	}
@@ -535,7 +537,7 @@ func TestArticleModuleCRUDForSuperAdmin(t *testing.T) {
 	categoryID := strconv.FormatInt(categoryResp.Data.ID, 10)
 
 	// 同名分类必须冲突
-	w = doJSON(t, r, "POST", "/api/v1/article-categories", token, `{"name":"公告"}`)
+	w = doJSON(t, r, "POST", "/admin-api/article-categories", token, `{"name":"公告"}`)
 	if w.Code != http.StatusConflict {
 		t.Fatalf("同名分类应 409: %d %s", w.Code, w.Body.String())
 	}
@@ -551,7 +553,7 @@ func TestArticleModuleCRUDForSuperAdmin(t *testing.T) {
 
 	// 发文章(发布)
 	body := `{"categoryId":` + categoryID + `,"title":"第一篇","summary":"摘要","content":"<p>正文</p>","status":2}`
-	if w = doJSON(t, r, "POST", "/api/v1/articles", token, body); w.Code != http.StatusCreated {
+	if w = doJSON(t, r, "POST", "/admin-api/articles", token, body); w.Code != http.StatusCreated {
 		t.Fatalf("创建文章应 201: %d %s", w.Code, w.Body.String())
 	}
 	var articleResp struct {
@@ -567,16 +569,16 @@ func TestArticleModuleCRUDForSuperAdmin(t *testing.T) {
 	if articleResp.Data.Author != "admin" {
 		t.Fatalf("应记录创建者: %s", w.Body.String())
 	}
-	articlePath := "/api/v1/articles/" + strconv.FormatInt(articleResp.Data.ID, 10)
+	articlePath := "/admin-api/articles/" + strconv.FormatInt(articleResp.Data.ID, 10)
 
 	// 分类不存在必须 404
 	badCategory := `{"categoryId":999,"title":"x","content":"<p>x</p>","status":1}`
-	if w = doJSON(t, r, "POST", "/api/v1/articles", token, badCategory); w.Code != http.StatusNotFound {
+	if w = doJSON(t, r, "POST", "/admin-api/articles", token, badCategory); w.Code != http.StatusNotFound {
 		t.Fatalf("指向不存在分类应 404: %d %s", w.Code, w.Body.String())
 	}
 
 	// 列表带分类名与状态,且不回传正文
-	if w = doReq(r, "GET", "/api/v1/articles", token); w.Code != http.StatusOK ||
+	if w = doReq(r, "GET", "/admin-api/articles", token); w.Code != http.StatusOK ||
 		!strings.Contains(w.Body.String(), `"total":1`) || !strings.Contains(w.Body.String(), "公告") {
 		t.Fatalf("列表应带出分类名: %d %s", w.Code, w.Body.String())
 	}
@@ -596,7 +598,7 @@ func TestArticleModuleCRUDForSuperAdmin(t *testing.T) {
 	}
 
 	// 非空分类删除必须 409
-	if w = doReq(r, "DELETE", "/api/v1/article-categories/"+categoryID, token); w.Code != http.StatusConflict {
+	if w = doReq(r, "DELETE", "/admin-api/article-categories/"+categoryID, token); w.Code != http.StatusConflict {
 		t.Fatalf("非空分类删除应 409: %d %s", w.Code, w.Body.String())
 	}
 
@@ -604,7 +606,7 @@ func TestArticleModuleCRUDForSuperAdmin(t *testing.T) {
 	if w = doReq(r, "DELETE", articlePath, token); w.Code != http.StatusOK {
 		t.Fatalf("删除文章应 200: %d %s", w.Code, w.Body.String())
 	}
-	if w = doReq(r, "DELETE", "/api/v1/article-categories/"+categoryID, token); w.Code != http.StatusOK {
+	if w = doReq(r, "DELETE", "/admin-api/article-categories/"+categoryID, token); w.Code != http.StatusOK {
 		t.Fatalf("空分类删除应 200: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -625,7 +627,7 @@ func uploadArticleImage(t *testing.T, r *gin.Engine, token, filename string) *ht
 	}
 	mw.Close()
 
-	req := httptest.NewRequest("POST", "/api/v1/article-images", &body)
+	req := httptest.NewRequest("POST", "/admin-api/article-images", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
@@ -636,7 +638,7 @@ func uploadArticleImage(t *testing.T, r *gin.Engine, token, filename string) *ht
 func TestPortalDemoIsPublic(t *testing.T) {
 	r := newRouterEnv(t)
 	// portal 开放接口不挂鉴权:无 token 也应返回 200 + code 0
-	w := doReq(r, "GET", "/api/v1/portal/demo", "")
+	w := doReq(r, "GET", "/api/portal/demo", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("portal demo 应公开可访问: %d %s", w.Code, w.Body.String())
 	}
@@ -647,5 +649,57 @@ func TestPortalDemoIsPublic(t *testing.T) {
 	data, _ := m["data"].(map[string]interface{})
 	if data["name"] != "Go Admin" {
 		t.Fatalf("data.name 应为 Go Admin: %v", data)
+	}
+}
+
+func TestMountWebDirs(t *testing.T) {
+	appDir, adminDir := t.TempDir(), t.TempDir()
+	mustWrite := func(dir, name, content string) {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite(appDir, "index.html", "app-index")
+	mustWrite(appDir, "app.js", "app-js")
+	mustWrite(adminDir, "index.html", "admin-index")
+
+	r := gin.New()
+	mountWebDirs(r, map[string]string{"app": appDir, "admin": adminDir})
+
+	get := func(path string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		return w
+	}
+
+	if w := get("/"); w.Body.String() != "app-index" {
+		t.Fatalf("根路径应回退 app index: %s", w.Body.String())
+	}
+	if w := get("/app.js"); w.Body.String() != "app-js" {
+		t.Fatalf("静态文件应直接输出: %s", w.Body.String())
+	}
+	if w := get("/portal/some/route"); w.Body.String() != "app-index" {
+		t.Fatalf("app 深链应回退 index: %s", w.Body.String())
+	}
+	if w := get("/api/whatever"); !strings.Contains(w.Body.String(), "接口不存在") {
+		t.Fatalf("API 前缀应返回 JSON 404: %s", w.Body.String())
+	}
+	if w := get("/admin/"); w.Body.String() != "admin-index" {
+		t.Fatalf("admin 路径应回退 admin index: %s", w.Body.String())
+	}
+	if w := get("/admin/assets/logo.png"); w.Body.String() != "admin-index" {
+		t.Fatalf("admin 深链应回退 admin index: %s", w.Body.String())
+	}
+
+	// admin 未托管时,/admin/ 不应被 app 的根回退接管
+	r2 := gin.New()
+	mountWebDirs(r2, map[string]string{"app": appDir})
+	w := httptest.NewRecorder()
+	r2.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/", nil))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("admin 未托管时 /admin/ 应 404: %d %s", w.Code, w.Body.String())
 	}
 }

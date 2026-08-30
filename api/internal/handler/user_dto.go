@@ -6,7 +6,7 @@ import (
 	"github.com/hesunfly/hesunfly-admin-go/api/pkg/page"
 )
 
-// UserListQuery GET /api/v1/users 查询参数。
+// UserListQuery GET /admin-api/users 查询参数。
 type UserListQuery struct {
 	page.Query
 	Username  string `form:"username"`
@@ -28,7 +28,7 @@ func (q *UserListQuery) toInput() *service.UserListInput {
 	}
 }
 
-// UserCreateRequest POST /api/v1/users 请求体。
+// UserCreateRequest POST /admin-api/users 请求体。
 type UserCreateRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=64"`
 	Password string `json:"password" binding:"required,min=8,max=128"`
@@ -39,7 +39,7 @@ type UserCreateRequest struct {
 	Remark   string `json:"remark" binding:"max=255"`
 }
 
-// UserUpdateRequest PUT /api/v1/users/:id 请求体(密码走重置接口,头像走个人中心上传)。
+// UserUpdateRequest PUT /admin-api/users/:id 请求体(密码走重置接口,头像走个人中心上传)。
 type UserUpdateRequest struct {
 	Nickname string `json:"nickname" binding:"max=64"`
 	Email    string `json:"email" binding:"omitempty,email,max=128"`
@@ -48,17 +48,17 @@ type UserUpdateRequest struct {
 	Remark   string `json:"remark" binding:"max=255"`
 }
 
-// UserSetStatusRequest PUT /api/v1/users/:id/status 请求体。
+// UserSetStatusRequest PUT /admin-api/users/:id/status 请求体。
 type UserSetStatusRequest struct {
 	Status int `json:"status" binding:"required,oneof=1 2"`
 }
 
-// UserResetPasswordRequest PUT /api/v1/users/:id/password 请求体。
+// UserResetPasswordRequest PUT /admin-api/users/:id/password 请求体。
 type UserResetPasswordRequest struct {
 	Password string `json:"password" binding:"required,min=8,max=128"`
 }
 
-// UserAssignRolesRequest PUT /api/v1/users/:id/roles 请求体。
+// UserAssignRolesRequest PUT /admin-api/users/:id/roles 请求体。
 type UserAssignRolesRequest struct {
 	RoleIDs []int64 `json:"roleIds" binding:"required"`
 }

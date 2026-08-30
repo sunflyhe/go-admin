@@ -32,7 +32,7 @@ const (
 	kindArchive  fileKind = "archive"
 )
 
-// FileCategory 文件中心的类型标签,对外出现在 GET /api/v1/files?category= 上。
+// FileCategory 文件中心的类型标签,对外出现在 GET /admin-api/files?category= 上。
 type FileCategory string
 
 const (

@@ -6,7 +6,7 @@ import (
 	"github.com/hesunfly/hesunfly-admin-go/api/pkg/page"
 )
 
-// RoleListQuery GET /api/v1/roles 查询参数。
+// RoleListQuery GET /admin-api/roles 查询参数。
 type RoleListQuery struct {
 	page.Query
 	Name   string `form:"name"`
@@ -21,7 +21,7 @@ func (q *RoleListQuery) toInput() *service.RoleListInput {
 	}
 }
 
-// RoleCreateRequest POST /api/v1/roles 请求体。
+// RoleCreateRequest POST /admin-api/roles 请求体。
 type RoleCreateRequest struct {
 	Name        string `json:"name" binding:"required,max=64"`
 	Code        string `json:"code" binding:"required,min=2,max=64"`
@@ -29,7 +29,7 @@ type RoleCreateRequest struct {
 	Status      int    `json:"status" binding:"omitempty,oneof=1 2"`
 }
 
-// RoleUpdateRequest PUT /api/v1/roles/:id 请求体(编码创建后不可修改)。
+// RoleUpdateRequest PUT /admin-api/roles/:id 请求体(编码创建后不可修改)。
 type RoleUpdateRequest struct {
 	Name        string `json:"name" binding:"required,max=64"`
 	Code        string `json:"code" binding:"omitempty,min=2,max=64"`
@@ -37,7 +37,7 @@ type RoleUpdateRequest struct {
 	Status      int    `json:"status" binding:"omitempty,oneof=1 2"`
 }
 
-// RoleAssignMenusRequest PUT /api/v1/roles/:id/menus 请求体。
+// RoleAssignMenusRequest PUT /admin-api/roles/:id/menus 请求体。
 type RoleAssignMenusRequest struct {
 	MenuIDs []int64 `json:"menuIds" binding:"required"`
 }

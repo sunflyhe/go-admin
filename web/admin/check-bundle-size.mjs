@@ -6,7 +6,7 @@ import { resolve } from 'node:path'
 
 const distDir = resolve('dist')
 const budgets = [
-  { label: '入口 JavaScript', pattern: /<script[^>]+src="\/(assets\/[^\"]+\.js)"/, limit: 300 * 1024 },
+  { label: '入口 JavaScript', pattern: /<script[^>]+src="[^"]*\/(assets\/[^"]+\.js)"/, limit: 300 * 1024 },
   { label: '最大 CSS', pattern: /assets\/(.+\.css)$/u, limit: 64 * 1024, largest: true },
   { label: '富文本懒加载包', pattern: /assets\/(edit-[^/]+\.js)$/u, limit: 900 * 1024 }
 ]
