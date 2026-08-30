@@ -37,6 +37,14 @@ func TestSuperAdminProtected(t *testing.T) {
 	if err := svc.SetStatus(ctx, 1, &UserSetStatusInput{Status: model.StatusDisabled}); err == nil {
 		t.Fatal("内置超管账号不允许停用")
 	}
+	if err := svc.AssignRoles(ctx, 1, &UserAssignRolesInput{RoleIDs: []int64{1}}); err == nil {
+		t.Fatal("内置超管账号不允许分配角色")
+	}
+	var count int64
+	svc.DB.Model(&model.SysUserRole{}).Where("user_id = ?", 1).Count(&count)
+	if count == 0 {
+		t.Fatal("被拒绝的分配角色不应清理超管已有角色绑定")
+	}
 }
 
 func TestDeleteCleansRelations(t *testing.T) {

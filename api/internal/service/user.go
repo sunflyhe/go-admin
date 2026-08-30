@@ -262,6 +262,14 @@ func (s *UserService) ResetPassword(ctx context.Context, id int64, req *UserRese
 }
 
 func (s *UserService) AssignRoles(ctx context.Context, id int64, req *UserAssignRolesInput) error {
+	// 超管保护:内置账号按 ID 通配全部权限,分配角色无意义,还会清掉其角色绑定
+	var target model.SysUser
+	if err := s.DB.WithContext(ctx).First(&target, id).Error; err != nil {
+		return errs.NotFound("用户不存在")
+	}
+	if target.IsSuperAdmin() {
+		return errs.InvalidParam("内置超级管理员账号不允许分配角色")
+	}
 	// 校验角色均存在且启用
 	var validIDs []int64
 	if err := s.DB.WithContext(ctx).Model(&model.SysRole{}).

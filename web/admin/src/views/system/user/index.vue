@@ -67,8 +67,12 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item v-perm="'system:user:reset-password'" command="resetPassword">重置密码</el-dropdown-item>
-              <el-dropdown-item v-perm="'system:user:assign-role'" command="assignRoles">分配角色</el-dropdown-item>
+              <el-dropdown-item v-perm="'system:user:reset-password'" command="resetPassword" :disabled="row.super">
+                重置密码
+              </el-dropdown-item>
+              <el-dropdown-item v-perm="'system:user:assign-role'" command="assignRoles" :disabled="row.super">
+                分配角色
+              </el-dropdown-item>
               <el-dropdown-item v-perm="'system:user:delete'" command="delete" :disabled="row.super" divided>
                 <span class="danger-item">删除</span>
               </el-dropdown-item>
