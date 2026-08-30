@@ -1,6 +1,6 @@
 # 部署手册(二进制 + systemd + Nginx)
 
-目标机 Linux x86_64(其他架构改 `build-release.sh` 的 `GOARCH`);安装目录 `/opt/go-admin`。宝塔等面板场景:数据库/守护进程/证书改用面板功能,步骤一一对应。
+依赖:MySQL 8、Nginx。目标机 Linux x86_64(其他架构改 `build-release.sh` 的 `GOARCH`);安装目录 `/opt/go-admin`。宝塔等面板场景:数据库/守护进程/证书改用面板功能,步骤一一对应。
 
 ## 构建(开发机)
 
@@ -12,9 +12,6 @@ scp release/go-admin-release.tar.gz root@<服务器>:/opt/
 ## 服务器
 
 ```bash
-apt install -y mysql-server nginx
-systemctl enable --now mysql nginx
-
 mysql -e "
 CREATE DATABASE go_admin DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'goadmin'@'localhost' IDENTIFIED BY '<密码>';
