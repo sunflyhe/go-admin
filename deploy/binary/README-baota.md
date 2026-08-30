@@ -32,86 +32,64 @@ chmod +x /www/wwwroot/go-admin/go-admin
 - `mysql.dsn`:把 `CHANGE_ME` 换成上一步的密码(主机保持 `127.0.0.1:3306`)
 - `jwt.secret`:终端 `openssl rand -base64 32` 生成后粘贴
 
-其余项(addr 127.0.0.1:8080、trustedProxies、webDirs)保持模板默认即可。
+其余项(addr 127.0.0.1:8080、trustedProxies)保持模板默认即可。**webDirs 与 upload.dir 建议改成绝对路径**(Go 项目的运行目录不保证是二进制所在目录):
 
-## 5. 进程守护(让 API 常驻)
+```yaml
+  webDirs:
+    app: "/www/wwwroot/go-admin/web/app"
+    admin: "/www/wwwroot/go-admin/web/admin"
+```
+```yaml
+upload:
+  dir: "/www/wwwroot/go-admin/data/uploads"
+```
 
-【软件商店】→ 搜索安装 **进程守护管理器**(Supervisor),然后:
+改完执行 `chown -R www:www /www/wwwroot/go-admin`,让 www 用户可读写。
 
-添加守护进程:
+## 5. 用【Go 项目】让 API 常驻(推荐)
 
-| 项 | 值 |
-|---|---|
-| 名称 | go-admin |
-| 启动用户 | www |
-| 运行目录 | /www/wwwroot/go-admin |
-| 启动命令 | /www/wwwroot/go-admin/go-admin -config /www/wwwroot/go-admin/config.yaml |
-| 进程数量 | 1 |
+面板【网站】→【Go 项目】→【添加 Go 项目】,按下表填写:
 
-启动后点【日志】确认看到 `HTTP 服务启动`。验证:`curl 127.0.0.1:8080/healthz` 返回 ok。
+| 字段 | 值 | 说明 |
+|---|---|---|
+| 项目执行文件 | /www/wwwroot/go-admin/go-admin | 解压出的二进制 |
+| 项目名称 | go-admin | |
+| 项目端口 | 8080 | API 真实监听端口 |
+| 放行端口 | **不勾** | 8080 只给 Nginx 反代,勾了会把 API 暴露到公网 |
+| 执行命令 | -config /www/wwwroot/go-admin/config.yaml | 启动参数 |
+| 环境变量 | 无 | 配置都在 config.yaml |
+| 运行用户 | www | |
+| 开机启动 | 勾选 | |
+| 绑定域名 | 你的域名 | DNS 先解析到服务器 IP;填了宝塔会自动生成反代站点 |
 
-> 偏好 systemd 的话也可以用 `deploy/binary/go-admin.service`(改 User/路径后照标准手册装),与守护管理器二选一,别同时跑两个。
+确定后【日志】里确认 `HTTP 服务启动`;`curl 127.0.0.1:8080/healthz` 返回 ok。
 
-## 6. 添加站点与反向代理
+因为 Go 后端通过 `webDirs` 自己托管两端静态页面,**绑定域名生成的反代站点(全站代理到 8080)开箱即用**,不需要任何自定义 location。
 
-【网站】→【添加站点】:
+> 替代方案:【软件商店】的进程守护管理器(Supervisor),或 `deploy/binary/go-admin.service`(systemd)。三选一,不要同时跑两个。
 
-- 域名:你的域名(先去 DNS 加 A 记录指向服务器 IP)
-- 根目录:任选(如 /www/wwwroot/go-admin-site,我们不用它托管静态)
-- PHP 版本:**纯静态**
+## 6. 站点微调(仅在使用第 5 节"绑定域名"时基本无需改动)
 
-创建后进入站点【设置】→【配置文件】,在 `server {}` 内**追加**以下 location 块(保留宝塔生成的 server_name/SSL/日志行):
+绑定域名自动生成的站点会把所有请求代理到 8080,Go 端已能处理全部路径。若想静态资源走 Nginx 直出(可选优化),再进站点【配置文件】追加:
 
 ```nginx
-  location /api/ {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-  location /admin-api/ {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-  location /files/ {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
   location /admin/assets/ {
     alias /www/wwwroot/go-admin/web/admin/assets/;
     expires 1y;
     add_header Cache-Control "public, immutable";
   }
-  location /admin/ {
-    alias /www/wwwroot/go-admin/web/admin/;
-    expires -1;
-    try_files $uri $uri/ /admin/index.html;
-  }
   location /assets/ {
     root /www/wwwroot/go-admin/web/app;
-    try_files $uri =404;
     expires 1y;
     add_header Cache-Control "public, immutable";
   }
-  location / {
-    root /www/wwwroot/go-admin/web/app;
-    expires -1;
-    try_files $uri $uri/ /index.html;
-  }
 ```
 
-保存前把站点原有的 `location /`(宝塔默认生成的那个)删掉或注释,避免冲突。保存后宝塔自动 `nginx -t` 并 reload。
+不加也完全不影响功能——静态文件由 Go 输出,带正确的 no-cache/缓存语义。
 
 ## 7. SSL
 
-站点【设置】→【SSL】→【Let's Encrypt】→ 勾选域名 → 申请,成功后开启【强制 HTTPS】。证书续期由宝塔自动处理。
+站点(【Go 项目】绑定域名自动生成的那个站点)【设置】→【SSL】→【Let's Encrypt】→ 勾选域名 → 申请,成功后开启【强制 HTTPS】。证书续期由宝塔自动处理。
 
 ## 8. 端口
 
@@ -127,4 +105,4 @@ chmod +x /www/wwwroot/go-admin/go-admin
 ## 升级版本
 
 1. 本机重新 `bash deploy/binary/build-release.sh`,上传覆盖 `/www/wwwroot/go-admin/`(config.yaml 是你自己改过的,**覆盖时保留它**,或上传到临时目录后只替换 go-admin、web/ 两个产物)
-2. 守护管理器里【重启】go-admin——数据库迁移在启动时自动增量执行
+2. 【Go 项目】列表里【重启】go-admin——数据库迁移在启动时自动增量执行
