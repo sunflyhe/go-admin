@@ -1,52 +1,34 @@
-# 路线 B 部署手册(二进制 + systemd + Nginx)
+# 部署手册(二进制 + systemd + Nginx)
 
-目标机:Ubuntu 24.04 x86_64(已按此架构出产物;其他架构改 `build-release.sh` 里的 `GOARCH`)。
-约定安装目录:`/opt/go-admin`。全程假设你以 root 操作。
+目标机 Linux x86_64(其他架构改 `build-release.sh` 的 `GOARCH`);安装目录 `/opt/go-admin`。宝塔等面板场景:数据库/守护进程/证书改用面板功能,步骤一一对应。
 
-## 0. 本机构建发布包
+## 构建(开发机)
 
 ```bash
 bash deploy/binary/build-release.sh
-scp release/go-admin-release.tar.gz root@<服务器IP>:/opt/
+scp release/go-admin-release.tar.gz root@<服务器>:/opt/
 ```
 
-## 1. 服务器:装依赖
+## 服务器
 
 ```bash
 apt update && apt install -y mysql-server nginx
 systemctl enable --now mysql nginx
-mysql_secure_installation   # 按提示做基础加固
-```
 
-## 2. 建库建账号(不要用 root 跑应用)
-
-```bash
-mysql <<'SQL'
+mysql -e "
 CREATE DATABASE go_admin DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'goadmin'@'localhost' IDENTIFIED BY '换成强密码';
+CREATE USER 'goadmin'@'localhost' IDENTIFIED BY '<密码>';
 GRANT ALL PRIVILEGES ON go_admin.* TO 'goadmin'@'localhost';
-FLUSH PRIVILEGES;
-SQL
-```
+FLUSH PRIVILEGES;"
 
-## 3. 解压与配置
+cd /opt/go-admin && tar -xzf /opt/go-admin-release.tar.gz && chmod +x go-admin
+useradd -r -s /usr/sbin/nologin goadmin && chown -R goadmin:goadmin /opt/go-admin
 
-```bash
-mkdir -p /opt/go-admin && cd /opt/go-admin
-tar -xzf /opt/go-admin-release.tar.gz
-chmod +x go-admin
-
-# 编辑 config.yaml:两处 TODO(dsn 密码、jwt.secret)
-#   jwt.secret 用:openssl rand -base64 32
+# 改 config.yaml 两处:dsn 密码、jwt.secret(openssl rand -base64 32)
 vim config.yaml
-
-# 应用运行账号与目录归属
-useradd -r -s /usr/sbin/nologin goadmin
-chown -R goadmin:goadmin /opt/go-admin
-sudo -u goadmin ./go-admin -config config.yaml   # 手动试跑一次,看到 "HTTP 服务启动" 即成,Ctrl+C
 ```
 
-## 4. systemd 托管 API(命令行运维场景;宝塔面板用【Go 项目】托管的跳过本步)
+## systemd
 
 ```bash
 cat > /etc/systemd/system/go-admin.service <<'EOF'
@@ -72,55 +54,31 @@ ReadWritePaths=/opt/go-admin
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl daemon-reload
-systemctl enable --now go-admin
-systemctl status go-admin            # active (running)
-curl -s http://127.0.0.1:8080/healthz   # {"status":"ok"}
+systemctl daemon-reload && systemctl enable --now go-admin
+curl -s http://127.0.0.1:8080/healthz
 ```
 
-## 5. Nginx 站点
+## Nginx
 
 ```bash
 cp nginx.conf /etc/nginx/sites-available/go-admin
-vim /etc/nginx/sites-available/go-admin   # 改 server_name 为你的域名
+sed -i 's/server_name _;/server_name <域名>/' /etc/nginx/sites-available/go-admin
 ln -sf /etc/nginx/sites-available/go-admin /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
+
+apt install -y certbot python3-certbot-nginx && certbot --nginx -d <域名>
 ```
 
-## 6. 防火墙/安全组
+## 端口
 
-- 阿里云安全组:只放行 22、80、443;**8080 绝不对外**
-- 本机如启用 ufw:同样只放行 80/443
+安全组/ufw 只放行 22、80、443;**8080 仅本机**(config 的 `addr` 为 `127.0.0.1:8080`)。
 
-## 7. HTTPS(有域名时)
+## 验证
 
-```bash
-apt install -y certbot python3-certbot-nginx
-certbot --nginx -d <你的域名>    # 自动改写配置加 443 与 80→443 跳转,证书自动续期
-```
+浏览器访问 `/`(app)与 `/admin/`(管理端,默认 `admin / Admin@123456`,首登改密)。
+502 → `systemctl status go-admin`;日志 IP 全是 127.0.0.1 → 检查 `trustedProxies`。
 
-## 8. 验收
+## 升级
 
-- `http://<域名或IP>/` → app 端
-- `http://<域名或IP>/admin/` → 管理端,默认账号 `admin / Admin@123456`,**登录后立即改密**
-- 数据库迁移已自动执行(`migration done` 字样出现在 `journalctl -u go-admin`)
-
-## 升级版本
-
-```bash
-# 本机:重新 build-release.sh + scp
-# 服务器:
-cd /opt/go-admin && tar -xzf /opt/go-admin-release.tar.gz && chown -R goadmin:goadmin /opt/go-admin
-systemctl restart go-admin   # 数据库迁移在启动时自动增量执行
-```
-
-## 常见问题
-
-| 现象 | 排查 |
-|---|---|
-| 起不来 `bind: address already in use` | 8080 被占:`ss -ltnp \| grep 8080` |
-| 页面 502 | `systemctl status go-admin`;API 没起来或监听地址不是 127.0.0.1 |
-| 登录接口 502 但页面正常 | 同上,看 `journalctl -u go-admin -f` |
-| 客户端 IP 全是 127.0.0.1 | config 的 `trustedProxies` 必须含 `127.0.0.1` |
-| 数据库连接拒绝 | MySQL 未启动,或 dsn 密码与第 2 步不一致 |
+重新构建上传覆盖(**保留 config.yaml**)→ `systemctl restart go-admin`;迁移自动增量执行。
