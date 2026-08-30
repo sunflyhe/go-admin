@@ -12,7 +12,7 @@ scp release/go-admin-release.tar.gz root@<服务器>:/opt/
 ## 服务器
 
 ```bash
-apt update && apt install -y mysql-server nginx
+apt install -y mysql-server nginx
 systemctl enable --now mysql nginx
 
 mysql -e "
