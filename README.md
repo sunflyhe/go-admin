@@ -86,12 +86,7 @@ npm run build      # 生产构建,产物在 web/admin/dist(路由基座 /admin/)
 bash deploy/binary/build-release.sh   # 产出 release/go-admin-release.tar.gz
 ```
 
-按客户环境二选一,照手册执行:
-
-| 手册 | 适用 |
-|---|---|
-| [deploy/binary/README.md](deploy/binary/README.md) | 通用 Linux(二进制 + systemd + Nginx + HTTPS) |
-| [deploy/binary/README-baota.md](deploy/binary/README-baota.md) | 客户服务器带宝塔面板 |
+照手册执行:[deploy/binary/README.md](deploy/binary/README.md)（通用 Linux：二进制 + systemd + Nginx + HTTPS；宝塔等面板场景把对应步骤换成面板操作即可）。
 
 要点:API 默认只监听 `127.0.0.1:8080`(公网流量一律经 Nginx 反代,`server.trustedProxies` 填实际代理地址,**切勿配置为全网段**)。
 
