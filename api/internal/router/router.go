@@ -149,7 +149,7 @@ func mountWebDirs(r *gin.Engine, dirs map[string]string) {
 
 	if adminDir != "" {
 		// gin 的 /*path 通配即覆盖 /admin/ 本身;/admin(无斜杠)由 gin 自动 301 到 /admin/
-		r.GET("/admin/*path", func(c *gin.Context) {
+		adminSPA := func(c *gin.Context) {
 			rel := c.Param("path")
 			if rel == "/" || rel == "" {
 				serveSPA(c, adminDir)
@@ -161,17 +161,26 @@ func mountWebDirs(r *gin.Engine, dirs map[string]string) {
 				return
 			}
 			serveSPA(c, adminDir)
-		})
+		}
+		r.GET("/admin/*path", adminSPA)
+		r.HEAD("/admin/*path", adminSPA)
 	}
 }
 
 // serveSPA 输出目录内与请求路径匹配的静态文件,未命中回退该目录的 index.html。
+// index.html 强制 no-cache:浏览器必须每次协商重验,否则发版后用户会长期停留在
+// 旧 bundle 上(启发式缓存按 Last-Modified 计算有效期,导致"改了代码看不到变化");
+// 带 hash 的静态资源文件名即版本,可放心使用默认缓存。
 func serveSPA(c *gin.Context, dir string) {
 	full := filepath.Join(dir, filepath.Clean("/"+c.Request.URL.Path))
 	if info, err := os.Stat(full); err == nil && !info.IsDir() {
+		if strings.HasSuffix(full, "index.html") {
+			c.Header("Cache-Control", "no-cache")
+		}
 		c.File(full)
 		return
 	}
+	c.Header("Cache-Control", "no-cache")
 	c.File(filepath.Join(dir, "index.html"))
 }
 
