@@ -13,8 +13,10 @@ let refreshing: Promise<string | null> | null = null
 function clearAndRedirect() {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('refreshToken')
-  if (!location.pathname.startsWith('/login')) {
-    location.href = '/login'
+  // 跳转路径必须带 vite base(/admin/):location.href 不经过 vue-router,不会自动补基座
+  const loginPath = `${import.meta.env.BASE_URL}login`
+  if (!location.pathname.startsWith(loginPath)) {
+    location.href = loginPath
   }
 }
 
@@ -54,9 +56,10 @@ request.interceptors.response.use(
     const resp = err.response
     if (resp && resp.status === 401) {
       const original = err.config as InternalAxiosRequestConfig & { _retried?: boolean }
-      // 登录接口本身的 401 直接提示,不刷新
+      // 登录接口本身的 401 直接提示失败原因,不刷新
       if (original.url?.includes('/auth/login') || original._retried) {
         clearAndRedirect()
+        ElMessage.error(resp.data?.message || '登录失败,请检查用户名和密码')
         return Promise.reject(err)
       }
       original._retried = true
