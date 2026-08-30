@@ -632,3 +632,20 @@ func uploadArticleImage(t *testing.T, r *gin.Engine, token, filename string) *ht
 	r.ServeHTTP(w, req)
 	return w
 }
+
+func TestPortalDemoIsPublic(t *testing.T) {
+	r := newRouterEnv(t)
+	// portal 开放接口不挂鉴权:无 token 也应返回 200 + code 0
+	w := doReq(r, "GET", "/api/v1/portal/demo", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("portal demo 应公开可访问: %d %s", w.Code, w.Body.String())
+	}
+	m := bodyToMap(w)
+	if m["code"].(float64) != 0 {
+		t.Fatalf("业务码应为 0: %v", m)
+	}
+	data, _ := m["data"].(map[string]interface{})
+	if data["name"] != "Go Admin" {
+		t.Fatalf("data.name 应为 Go Admin: %v", data)
+	}
+}
