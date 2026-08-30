@@ -1,0 +1,25 @@
+# air 开发热重载配置:在 api/ 目录执行 `air` 代替 `go run`。
+# 改动 .go/.sql/.yaml 自动重新编译并重启;tmp/ 是构建产物目录,已加入 .gitignore。
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/api ./cmd/api"
+  bin = "./tmp/api"
+  # 运行参数:等价于 go run ./cmd/api -config configs/config.yaml
+  full_bin = "./tmp/api -config configs/config.yaml"
+  # 迁移 SQL 内嵌进二进制,改动同样需要重新编译
+  include_ext = ["go", "sql", "yaml"]
+  exclude_dir = ["tmp", "data", "test"]
+  exclude_regex = ["_test\\.go"]
+  delay = 800
+  # 给当前进程留出优雅退出的时间
+  send_interrupt = true
+  kill_delay = "2s"
+  log = "tmp/build-errors.log"
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

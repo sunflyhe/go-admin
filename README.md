@@ -58,6 +58,13 @@ go run ./cmd/api -config configs/config.yaml
 
 服务启动时会自动执行未应用的迁移与幂等种子数据;也可用 `api/migrations/` 下的 SQL 手工执行。
 
+开发时推荐用 [air](https://github.com/air-verse/air) 热重载代替 `go run`(改动 `.go`/`.sql`/`.yaml` 自动重编译重启,约 1 秒):
+
+```bash
+go install github.com/air-verse/air@latest
+cd api && air     # 配置见 api/.air.toml,纯开发工具,不进部署链
+```
+
 ### 4. 前端
 
 ```bash
