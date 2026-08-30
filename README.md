@@ -90,6 +90,8 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 
 API 默认不信任 `X-Forwarded-For` 等转发头；此 Compose 将 Web 容器固定为内部地址 `172.30.0.10`，并仅信任该地址。若改用自己的反向代理部署，请在 API 配置的 `server.trustedProxies`（或 `ADMIN_SERVER_TRUSTED_PROXIES`，逗号分隔）中填写实际代理 IP/CIDR，切勿配置为全网段。
 
+**分离部署**：两端产物构建独立，可分开托管。跨域名/跨源部署时（前端域名与 API 不同源、前端直连 API），需要两步：① API 侧启用 CORS——在 `server.corsAllowedOrigins`（或 `ADMIN_SERVER_CORS_ALLOWED_ORIGINS`，逗号分隔）填写前端来源白名单；② admin 端构建时用 `VITE_PUBLIC_BASE=/` 覆盖路径基座（默认基座 `/admin/` 仅用于同域路径共存形态），并设置 `VITE_API_BASE_URL` 指向 API 完整地址。若每个前端域名各自用 Nginx 把 `/api`、`/admin-api`、`/files` 反代到 API（域内保持同源），则无需任何 CORS 配置。
+
 ### 5. 默认账号
 
 | 账号 | 密码 | 角色 |

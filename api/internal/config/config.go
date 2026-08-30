@@ -22,6 +22,10 @@ type Server struct {
 	// app 挂根路径 /,admin 挂 /admin/;留空表示不托管,由 Nginx 等外部静态服务负责。
 	// map 字段不做环境变量覆盖,请直接在配置文件中填写。
 	WebDirs map[string]string `yaml:"webDirs"`
+	// 可选:CORS 允许来源列表(含 scheme,如 https://admin.example.com,"*" 放行任意来源)。
+	// 仅前端与 API 跨域直连部署时填写;同源部署(经同域 Nginx 反代)保持为空,不输出 CORS 头。
+	// 环境变量:ADMIN_SERVER_CORS_ALLOWED_ORIGINS(多个值用英文逗号分隔)
+	CORSAllowedOrigins []string `yaml:"corsAllowedOrigins"`
 }
 
 type MySQL struct {
@@ -101,6 +105,9 @@ func applyEnv(cfg *Config) {
 	// server.webDirs 为 map,不支持环境变量覆盖,请在配置文件中直接填写。
 	if v, ok := os.LookupEnv("ADMIN_SERVER_TRUSTED_PROXIES"); ok {
 		cfg.Server.TrustedProxies = splitCSV(v)
+	}
+	if v, ok := os.LookupEnv("ADMIN_SERVER_CORS_ALLOWED_ORIGINS"); ok {
+		cfg.Server.CORSAllowedOrigins = splitCSV(v)
 	}
 	str("ADMIN_MYSQL_DSN", &cfg.MySQL.DSN)
 	intVal("ADMIN_MYSQL_MAX_OPEN_CONNS", &cfg.MySQL.MaxOpenConns)

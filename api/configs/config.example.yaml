@@ -17,6 +17,10 @@ server:
   # 以避免客户端伪造来源 IP。仅在 API 位于 Nginx/网关之后时填写实际代理地址。
   # 环境变量:ADMIN_SERVER_TRUSTED_PROXIES（多个值用英文逗号分隔）
   trustedProxies: []
+  # 可选:CORS 允许来源。仅前端与 API 跨域直连部署(前端上 CDN/独立域名、API 在另一边)时填写,
+  # 如 https://admin.example.com;同源部署(经同域 Nginx 反代)保持为空,不输出任何 CORS 头。
+  # "*" 表示放行任意来源(不建议生产使用)。环境变量:ADMIN_SERVER_CORS_ALLOWED_ORIGINS
+  corsAllowedOrigins: []
   # 可选:多端 SPA 静态托管。键为端名,值为该端构建产物目录:
   #   app   → 挂根路径 /(先在 web/app 执行 npm run build)
   #   admin → 挂 /admin/(先在 web/admin 执行 npm run build,产物路由基座即 /admin/)

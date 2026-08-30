@@ -52,7 +52,13 @@ func New(d *Deps) *gin.Engine {
 		d.Logger.Error("配置可信代理失败", "error", err)
 		return r
 	}
-	r.Use(middleware.RequestID(), middleware.AccessLog(d.Logger), middleware.Recovery(d.Logger))
+	r.Use(
+		middleware.RequestID(),
+		middleware.AccessLog(d.Logger),
+		middleware.Recovery(d.Logger),
+		// CORS:默认(未配置来源)为直通,不产生任何跨域头;跨域直连部署时在配置中填写白名单
+		middleware.NewCORS(d.Cfg.Server.CORSAllowedOrigins).Middleware(),
+	)
 	r.MaxMultipartMemory = 8 << 20
 
 	registerHealthRoutes(r, d.DB)

@@ -62,3 +62,21 @@ func TestLoadWebDirs(t *testing.T) {
 		t.Fatalf("webDirs 解析错误: %v", cfg.Server.WebDirs)
 	}
 }
+
+func TestLoadCORSAllowedOriginsFromEnv(t *testing.T) {
+	path := writeConfig(t, "")
+	t.Setenv("ADMIN_SERVER_CORS_ALLOWED_ORIGINS", "https://admin.example.com, https://app.example.com")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"https://admin.example.com", "https://app.example.com"}
+	if len(cfg.Server.CORSAllowedOrigins) != len(want) {
+		t.Fatalf("CORS 来源解析错误: %v", cfg.Server.CORSAllowedOrigins)
+	}
+	for i, o := range want {
+		if cfg.Server.CORSAllowedOrigins[i] != o {
+			t.Fatalf("CORS 来源解析错误: %v", cfg.Server.CORSAllowedOrigins)
+		}
+	}
+}
